@@ -139,7 +139,9 @@ const C={bg:"#0b0f16",card:"#111622",border:"#1e2535",gold:"#d4a853",goldDim:"#7
 const STYLE=`
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Lora:ital,wght@0,400;0,500;1,400&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-  html,body{overflow-x:hidden;max-width:100vw;}
+  html{background:#0b0f16;height:-webkit-fill-available;}
+  body{background:#0b0f16;overflow-x:hidden;max-width:100vw;min-height:100vh;min-height:-webkit-fill-available;overscroll-behavior:none;-webkit-overflow-scrolling:touch;}
+  #root,#__next{background:#0b0f16;min-height:100vh;min-height:-webkit-fill-available;}
   @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
   @keyframes cardIn{from{opacity:0;transform:scale(.97) translateY(5px)}to{opacity:1;transform:scale(1)}}
   @keyframes micPulse{0%,100%{box-shadow:0 0 0 0 rgba(212,168,83,.5)}55%{box-shadow:0 0 0 18px rgba(212,168,83,0)}}
@@ -147,7 +149,6 @@ const STYLE=`
   @keyframes wave{0%,100%{height:5px}50%{height:18px}}
   @keyframes overlayIn{from{opacity:0}to{opacity:1}}
   @keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
-  @keyframes xpPop{0%{opacity:0;transform:translateY(0) scale(.8)}20%{opacity:1;transform:translateY(-8px) scale(1.1)}80%{opacity:1;transform:translateY(-18px) scale(1)}100%{opacity:0;transform:translateY(-28px) scale(.9)}}
   @keyframes flashOk{0%{background:#0f2018}50%{background:#1a4030}100%{background:#0f2018}}
   @keyframes flashWarn{0%{background:#1e1a0a}50%{background:#3a3010}100%{background:#1e1a0a}}
   @keyframes flashBad{0%{background:#200e0e}50%{background:#3a1a1a}100%{background:#200e0e}}
@@ -157,7 +158,6 @@ const STYLE=`
   .flash-ok{animation:flashOk .4s ease}
   .flash-warn{animation:flashWarn .4s ease}
   .flash-bad{animation:flashBad .4s ease}
-  .xp-pop{animation:xpPop 1.2s ease forwards;pointer-events:none;}
   .btn{cursor:pointer;transition:filter .15s,transform .1s;border:none;font-family:'Lora',serif;background:transparent;}
   .btn:hover{filter:brightness(1.12);transform:translateY(-1px)}
   .btn:active{transform:translateY(0) scale(.97)}
@@ -468,7 +468,7 @@ function HomeScreen({decks,langs,activeLang,gameStats,onLangSwitch,onAddLang,onE
   const lvl=getLevel(gameStats.xp??0);
   const streak=gameStats.dailyStreak??0;
   return(
-    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Lora',Georgia,serif",color:C.text,display:"flex",flexDirection:"column",alignItems:"center",padding:"1.5rem 1rem"}}>
+    <div style={{minHeight:"100dvh",background:C.bg,fontFamily:"'Lora',Georgia,serif",color:C.text,display:"flex",flexDirection:"column",alignItems:"center",padding:"1.5rem 1rem",overscrollBehavior:"none"}}>
       <style>{STYLE}</style>
       {showUpload&&<UploadModal onClose={()=>setShowUpload(false)} onUpload={onFileUpload}/>}
       {/* header */}
@@ -562,7 +562,7 @@ function DeckScreen({deck,langCfg,onBack,onStart,onUpdate,onAddWord,onDeleteWord
   const sr=ds.totalAnswers?Math.round(ds.correctAnswers/ds.totalAnswers*100):null;
   const sorted=sortWords(deck.words,wSort);
   const statItems=[{lbl:"Úspěšnost",val:sr!==null?`${sr}%`:"—",c:"#7090c8",bg:"#121a2e"},{lbl:"Naučeno",val:`${mastered}/${deck.words.length}`,c:C.ok,bg:C.okBg},{lbl:"Procvičeno",val:`${practiced}/${deck.words.length}`,c:"#a080c8",bg:"#1a1028"},{lbl:"K opak.",val:due,c:due>0?"#d08050":"#5a7060",bg:due>0?"#1a1008":"#0a1410"},{lbl:"Odpovědí",val:ds.totalAnswers||0,c:C.gold,bg:"#1a1608"},{lbl:"Kol",val:ds.roundsCompleted||0,c:"#7090c8",bg:"#121a2e"}];
-  return(<div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Lora',Georgia,serif",color:C.text,display:"flex",flexDirection:"column"}}>
+  return(<div style={{minHeight:"100dvh",background:C.bg,fontFamily:"'Lora',Georgia,serif",color:C.text,display:"flex",flexDirection:"column",overscrollBehavior:"none"}}>
     <style>{STYLE}</style>
     {showAdd&&<AddWordModal onClose={()=>setShowAdd(false)} onAdd={onAddWord}/>}
     {showStats&&<StatsModal deck={deck} onClose={()=>setShowStats(false)} onReset={()=>{onResetStats();setShowStats(false);}}/>}
@@ -638,7 +638,7 @@ function DeckScreen({deck,langCfg,onBack,onStart,onUpdate,onAddWord,onDeleteWord
 function RoundEnd({stats,total,deckName,xpEarned,newLevel,streak,onNext,onBack}){
   const pct=total?Math.round(stats.ok/total*100):0;
   const em=pct>=90?"🏆":pct>=70?"👏":pct>=50?"💪":"📚";
-  return(<div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Lora',Georgia,serif",color:C.text,display:"flex",alignItems:"center",justifyContent:"center",padding:"1.5rem"}}>
+  return(<div style={{minHeight:"100dvh",background:C.bg,fontFamily:"'Lora',Georgia,serif",color:C.text,display:"flex",alignItems:"center",justifyContent:"center",padding:"1.5rem",overscrollBehavior:"none"}}>
     <style>{STYLE}</style>
     <div className="card-in" style={{width:"100%",maxWidth:400,textAlign:"center"}}>
       <div style={{fontSize:52,marginBottom:10}}>{em}</div>
@@ -1007,7 +1007,6 @@ export default function LexiCard() {
     playSound(ok?"ok":"bad");
     const newCombo=quality>=5?combo+1:0;
     setCombo(newCombo);
-    // NO xpPop in flip mode — shown only at round end
     const sm2=sm2Update(w,quality);
     setDecks(ds=>ds.map(d=>d.id!==deckId?d:{...d,
       words:d.words.map(dw=>dw.id!==w.id?dw:{...dw,...sm2,score:quality>=3?(dw.score??0)+1:Math.max(0,(dw.score??0)-1),wStats:{total:(dw.wStats?.total??0)+1,correct:(dw.wStats?.correct??0)+(ok?1:0),wrong:(dw.wStats?.wrong??0)+(ok?0:1)}}),
@@ -1056,7 +1055,7 @@ export default function LexiCard() {
   function dontKnow(){const w=rWords[rIdx];if(!w||feedback)return;const ans=translDir==="en-cs"?w.cs:w.en;const lang=translDir==="en-cs"?"cs-CZ":"en-US";commitAnswer(w,0,"");speakWord(ans,lang);}
 
   /* ── loading ── */
-  if(!loaded)return(<div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:32,height:32,border:"3px solid #2e3447",borderTopColor:C.gold,borderRadius:"50%",animation:"spin .8s linear infinite"}}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>);
+  if(!loaded)return(<div style={{minHeight:"100dvh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:32,height:32,border:"3px solid #2e3447",borderTopColor:C.gold,borderRadius:"50%",animation:"spin .8s linear infinite"}}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>);
 
   /* ── routing ── */
   if(screen==="home") return(<>
@@ -1079,7 +1078,7 @@ export default function LexiCard() {
   const ci=comboInfo(combo);
   const allSyn=[...parseSyn(effDir==="en-cs"?w.cs:w.en).slice(1),...parseSyn(w.synonyms||"")].join(" · ");
 
-  return(<div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Lora',Georgia,serif",color:C.text,display:"flex",flexDirection:"column",alignItems:"center",overflow:"hidden"}}>
+  return(<div style={{minHeight:"100dvh",background:C.bg,fontFamily:"'Lora',Georgia,serif",color:C.text,display:"flex",flexDirection:"column",overscrollBehavior:"none",alignItems:"center",overflow:"hidden"}}>
     <style>{STYLE}</style>
 
     {/* top bar */}
@@ -1106,23 +1105,27 @@ export default function LexiCard() {
       const activeDir=mode==="flip"?flipDir:translDir;
       const setDir=v=>{if(mode==="flip")setFlipDir(v);else setTranslDir(v);clearCard();};
       const lc=langs.find(l=>l.id===deck?.lang)||langs[0];
-      const nativeName=lc?.nativeCode||"CZ";
-      const studyName=lc?.studyCode||"EN";
+      const nativeLabel=lc?.label||"Čeština";
+      const studyLabel=lc?.label||"Angličtina";
+      const nativeCode=lc?.nativeCode||"CZ";
+      const studyCode=lc?.studyCode||"EN";
       const studyFlag=lc?.flag||"🇬🇧";
+      const opts=[
+        {dir:"en-cs", label:`${studyFlag} ${studyLabel} → ${nativeCode}`},
+        {dir:"cs-en", label:`${nativeCode} → ${studyFlag} ${studyLabel}`},
+      ];
       return(
-        <div style={{width:"100%",maxWidth:680,padding:"0.5rem 1rem 0",display:"flex",gap:6}}>
-          {[
-            {dir:"en-cs", label:`${studyFlag} ${studyName} → ${nativeName}`},
-            {dir:"cs-en", label:`${nativeName} → ${studyFlag} ${studyName}`},
-          ].map(opt=>(
+        <div style={{width:"100%",maxWidth:680,padding:"0.5rem 1rem 0",display:"flex",gap:7}}>
+          {opts.map(opt=>(
             <button key={opt.dir} className="btn" onClick={()=>setDir(opt.dir)}
               style={{
                 flex:1,
-                background:activeDir===opt.dir?"#1e2a45":"transparent",
+                background:activeDir===opt.dir?"#1e2a45":C.card,
                 border:`1.5px solid ${activeDir===opt.dir?"#3a5080":C.border}`,
                 color:activeDir===opt.dir?C.gold:"#6a7080",
-                borderRadius:9,padding:"7px 6px",fontSize:12,
-                cursor:"pointer",transition:"all .2s",fontFamily:"'Lora',serif",
+                borderRadius:10,padding:"9px 8px",fontSize:13,
+                cursor:"pointer",transition:"all .2s",
+                fontFamily:"'Lora',serif",fontWeight:activeDir===opt.dir?600:400,
               }}>
               {opt.label}
             </button>
