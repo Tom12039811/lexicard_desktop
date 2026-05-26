@@ -662,7 +662,7 @@ function RoundEnd({stats,total,deckName,xpEarned,newLevel,streak,onNext,onBack})
 /* ══════════════════════════════════════════════════════════════
    FLIP SWIPE CARD — drag up OR tap buttons
 ══════════════════════════════════════════════════════════════ */
-function FlipSwipeCard({word:w, dir, flipped, flipFlash, dictEntry, allSyn, onFlip, onAnswer, onSpeak}) {
+function FlipSwipeCard({word:w, dir, flipped, flipFlash, dictEntry, allSyn, onFlip, onAnswer, onSpeak, onSpeakBack}) {
   const [drag,setDrag]=useState({active:false,dx:0,dy:0});
   const [hovered,setHovered]=useState(null); // 0=neznám,3=tuším,5=vím
   const startRef=useRef(null);
@@ -790,10 +790,13 @@ function FlipSwipeCard({word:w, dir, flipped, flipFlash, dictEntry, allSyn, onFl
             <div style={{fontSize:11,color:C.mutedDark,textTransform:"uppercase",letterSpacing:3,marginBottom:18}}>{frontFlag} — klikni pro překlad</div>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
               <div style={{fontFamily:"'Playfair Display',serif",fontSize:42,fontWeight:700,color:C.text,lineHeight:1.15}}>{frontWord}</div>
-              <button className="btn" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onSpeak();}}
-                style={{border:`1px solid #2e3447`,color:"#6a7888",borderRadius:"50%",width:34,height:34,fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>🔊</button>
+              {/* 🔊 only on EN front (dir=en-cs) — CZ front has no pronunciation to play */}
+              {dir==="en-cs"&&(
+                <button className="btn" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onSpeak();}}
+                  style={{border:`1px solid #2e3447`,color:"#6a7888",borderRadius:"50%",width:34,height:34,fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>🔊</button>
+              )}
             </div>
-            {showFront&&dictEntry?.ipa&&<div style={{fontSize:15,color:C.muted,fontStyle:"italic",marginBottom:6}}>{dictEntry.ipa}</div>}
+            {dir==="en-cs"&&dictEntry?.ipa&&<div style={{fontSize:15,color:C.muted,fontStyle:"italic",marginBottom:6}}>{dictEntry.ipa}</div>}
             <div style={{fontSize:13,color:"#2a3545",marginTop:8}}>👆 Klikni pro překlad</div>
           </>
         ):(
@@ -804,10 +807,15 @@ function FlipSwipeCard({word:w, dir, flipped, flipFlash, dictEntry, allSyn, onFl
             </div>
             {/* Řádek 2 — pouze šipka */}
             <div style={{fontSize:26,color:C.mutedDark,marginBottom:10,lineHeight:1}}>↓</div>
-            {/* Řádek 3 — přeložené slovo */}
-            <div style={{fontFamily:"'Playfair Display',serif",fontSize:38,fontWeight:700,color:C.text,lineHeight:1.2,marginBottom:allSyn||w.example?14:0}}>
-              {backWord}
+            {/* Řádek 3 — přeložené slovo + 🔊 vždy (tady je EN slovo) */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:allSyn||w.example?14:0}}>
+              <div style={{fontFamily:"'Playfair Display',serif",fontSize:38,fontWeight:700,color:C.text,lineHeight:1.2}}>
+                {backWord}
+              </div>
+              <button className="btn" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onSpeakBack();}}
+                style={{border:`1px solid #2e3447`,color:"#6a7888",borderRadius:"50%",width:34,height:34,fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>🔊</button>
             </div>
+            {dir==="cs-en"&&dictEntry?.ipa&&<div style={{fontSize:14,color:C.muted,fontStyle:"italic",marginBottom:allSyn||w.example?10:0}}>{dictEntry.ipa}</div>}
             {/* synonyma */}
             {allSyn&&<div style={{fontSize:13,color:"#5a6a50",marginBottom:w.example?12:0}}>také: {allSyn}</div>}
             {/* Řádek 4 — příkladová věta */}
@@ -908,16 +916,27 @@ export default function LexiCard() {
 
   /* ── auto speak ── */
   useEffect(()=>{
-    if(screen!=="study"||!rWords[rIdx]||feedback||!autoPlay||mode==="flip")return;
+    if(screen!=="study"||!rWords[rIdx]||feedback||!autoPlay) return;
     const w=rWords[rIdx];
-    const text=mode==="pron"?w.en:translDir==="en-cs"?w.en:w.cs;
-    const lang=translDir==="cs-en"?"cs-CZ":"en-US";
-    const t=setTimeout(()=>{
-      if(mode!=="cs-en"&&dictEntry?.audio)playAudio(dictEntry.audio);
-      else doSpeak(synthRef.current,text,lang);
-    },400);
-    return()=>clearTimeout(t);
-  },[rIdx,mode,screen,feedback,autoPlay,dictEntry]);
+    if(mode==="flip"){
+      // en-cs: auto-play EN word on front side appearance
+      if(flipDir==="en-cs"&&!flipped){
+        const t=setTimeout(()=>speakWord(w.en,"en-US"),400);
+        return()=>clearTimeout(t);
+      }
+      // cs-en: no autoplay on front (CZ) — plays when flipped (handled in onFlip)
+      return;
+    }
+    if(mode==="pron"||mode==="transl"){
+      const text=mode==="pron"?w.en:translDir==="en-cs"?w.en:w.cs;
+      const lang=translDir==="cs-en"?"cs-CZ":"en-US";
+      const t=setTimeout(()=>{
+        if(mode!=="cs-en"&&dictEntry?.audio)playAudio(dictEntry.audio);
+        else speakWord(text,lang);
+      },400);
+      return()=>clearTimeout(t);
+    }
+  },[rIdx,mode,screen,feedback,autoPlay,dictEntry,flipped,flipDir]);
 
   const deck=decks.find(d=>d.id===deckId)??null;
 
@@ -1147,9 +1166,16 @@ export default function LexiCard() {
           flipFlash={flipFlash}
           dictEntry={dictEntry}
           allSyn={allSyn}
-          onFlip={()=>setFlipped(true)}
+          onFlip={()=>{
+            setFlipped(true);
+            // cs-en: when card flips, we now see EN word — speak it
+            if(flipDir==="cs-en"&&autoPlay){
+              setTimeout(()=>speakWord(w.en,"en-US"),200);
+            }
+          }}
           onAnswer={flipAnswer}
-          onSpeak={()=>speakWord(flipDir==="en-cs"?w.en:w.cs,flipDir==="en-cs"?"en-US":"cs-CZ")}
+          onSpeak={()=>speakWord(w.en,"en-US")}
+          onSpeakBack={()=>speakWord(w.en,"en-US")}
         />
       )}
 
