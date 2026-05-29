@@ -1,12 +1,104 @@
-
 import React, { useState, useEffect, useRef } from "react";
-import { C, MODES, DEFAULT_LANGS, STAT_COLS, WORD_SORTS, DECK_SORTS } from "./constants.js";
-import { uid, now, sortDecks, sortWords, sortStats, getLevel, checkStreak } from "./utils.js";
+import { C, MODES, DEFAULT_LANGS, STAT_COLS, WORD_SORTS, DECK_SORTS, STYLE } from "./constants.js";
+import { uid, now, sortDecks, sortWords, sortStats, getLevel, checkStreak, dueCount } from "./utils.js";
 import { Modal, ConfirmModal, SettingsDropdown, LangModal } from "./modals.jsx";
 
 /* ══════════════════════════════════════════════════════════════
    DECK SCREEN
 ══════════════════════════════════════════════════════════════ */
+
+/* ─── Add Word Modal ───────────────────────────────────────── */
+function AddWordModal({onClose, onAdd}) {
+  const [en, setEn] = useState("");
+  const [cs, setCs] = useState("");
+  const [example, setExample] = useState("");
+  const [synonyms, setSynonyms] = useState("");
+
+  const handleAdd = () => {
+    if (!en.trim() || !cs.trim()) return;
+    onAdd({
+      id: uid(),
+      en: en.trim(),
+      cs: cs.trim(),
+      example: example.trim() || null,
+      synonyms: synonyms.trim() || null,
+      addedAt: now(),
+      vmBox: 1,
+      score: 0,
+      wStats: { total: 0, correct: 0, wrong: 0 }
+    });
+    setEn("");
+    setCs("");
+    setExample("");
+    setSynonyms("");
+    onClose();
+  };
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: 16 }}>+ Nové slovo</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+          <input className="inp" placeholder="Anglické slovo" value={en} onChange={e => setEn(e.target.value)} />
+          <input className="inp" placeholder="Český překlad" value={cs} onChange={e => setCs(e.target.value)} />
+          <input className="inp" placeholder="Příklad (volitelně)" value={example} onChange={e => setExample(e.target.value)} />
+          <input className="inp" placeholder="Synonyma (volitelně)" value={synonyms} onChange={e => setSynonyms(e.target.value)} />
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn" onClick={onClose} style={{ flex: 1, background: C.border, color: C.text, borderRadius: 8, padding: 10, cursor: "pointer" }}>Zrušit</button>
+          <button className="btn" onClick={handleAdd} disabled={!en.trim() || !cs.trim()} style={{ flex: 1, background: C.gold, color: C.bg, borderRadius: 8, padding: 10, cursor: "pointer", fontWeight: 600, opacity: en.trim() && cs.trim() ? 1 : 0.5 }}>Přidat</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Stats Modal ───────────────────────────────────────── */
+function StatsModal({deck, onClose, onReset}) {
+  const ds = deck.deckStats ?? { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 };
+  const sr = ds.totalAnswers ? Math.round(ds.correctAnswers / ds.totalAnswers * 100) : null;
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: 16 }}>Statistika</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+          <div style={{ background: C.okBg, borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: C.ok, textTransform: "uppercase", marginBottom: 4 }}>Úspěšnost</div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: C.ok }}>{sr !== null ? `${sr}%` : "—"}</div>
+          </div>
+          <div style={{ background: "#1a2038", borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#7090c8", textTransform: "uppercase", marginBottom: 4 }}>Odpovědí</div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: "#7090c8" }}>{ds.totalAnswers || 0}</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn" onClick={onClose} style={{ flex: 1, background: C.border, color: C.text, borderRadius: 8, padding: 10, cursor: "pointer" }}>Zavřít</button>
+          <button className="btn" onClick={onReset} style={{ flex: 1, background: C.errBg, color: C.err, borderRadius: 8, padding: 10, cursor: "pointer", fontWeight: 600 }}>Resetovat</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Rename Modal ───────────────────────────────────────── */
+function RenameModal({currentName, onClose, onRename}) {
+  const [name, setName] = useState(currentName);
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: 16 }}>Přejmenovat balíček</div>
+        <input className="inp" placeholder="Jméno balíčku" value={name} onChange={e => setName(e.target.value)} style={{ marginBottom: 16 }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn" onClick={onClose} style={{ flex: 1, background: C.border, color: C.text, borderRadius: 8, padding: 10, cursor: "pointer" }}>Zrušit</button>
+          <button className="btn" onClick={() => { onRename(name); onClose(); }} disabled={!name.trim()} style={{ flex: 1, background: C.gold, color: C.bg, borderRadius: 8, padding: 10, cursor: "pointer", fontWeight: 600, opacity: name.trim() ? 1 : 0.5 }}>Přejmenovat</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Deck Settings Dropdown (⚙️) ───────────────────────────── */
 function DeckSettingsDropdown({onDelete, onExport}) {
   const [open,setOpen]=useState(false);

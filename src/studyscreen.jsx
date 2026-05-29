@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useRef } from "react";
-import { C, MODES, DEFAULT_LANGS, STAT_COLS, WORD_SORTS, DECK_SORTS } from "./constants.js";
-import { uid, now, sortDecks, sortWords, sortStats, getLevel, checkStreak } from "./utils.js";
+import { C, MODES, DEFAULT_LANGS, STAT_COLS, WORD_SORTS, DECK_SORTS, STYLE } from "./constants.js";
+import { uid, now, sortDecks, sortWords, sortStats, getLevel, checkStreak, fetchDict, playAudio, doSpeak, parseSyn } from "./utils.js";
 import { Modal, ConfirmModal, SettingsDropdown, LangModal } from "./modals.jsx";
 
 /* ══════════════════════════════════════════════════════════════
@@ -217,4 +216,5 @@ function FlipSwipeCard({word:w, dir, flipped, flipFlash, dictEntry, allSyn, onFl
 }
 
 
-export default StudyScreen;
+export { RoundEnd, FlipSwipeCard };
+export default FlipSwipeCard;
