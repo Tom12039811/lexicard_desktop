@@ -32,7 +32,7 @@ function SettingsDropdown({autoPlay,onToggle}){
   );
 }
 
-* ─── Lang Dropdown ──────────────────────────────────────────── */
+/* ─── Lang Dropdown ──────────────────────────────────────────── */
 /* ─── Lang Modal (shared add + edit) ────────────────────────── */
 function LangModal({initial, onClose, onSave, title}) {
   const [f,setF]=useState(initial ?? {label:"",flag:"🌐",code:"",nativeCode:"CZ",studyCode:""});
