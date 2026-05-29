@@ -1,17 +1,17 @@
 /* ─── Modal ──────────────────────────────────────────────────── */
-function Modal({onClose,children,wide=false}){
+export function Modal({onClose,children,wide=false}){
   useEffect(()=>{const h=e=>{if(e.key==="Escape")onClose();};window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);},[onClose]);
   return(<div className="overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div className={`modal${wide?" modal-wide":""}`}>{children}</div></div>);
 }
-function ConfirmModal({title,msg,label="Smazat",onConfirm,onClose}){
+export function ConfirmModal({title,msg,label="Smazat",onConfirm,onClose}){
   return(<Modal onClose={onClose}><div style={{textAlign:"center",padding:"0.5rem 0"}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,color:C.text,marginBottom:8}}>{title}</div><div style={{fontSize:14,color:C.muted,marginBottom:24,lineHeight:1.6}}>{msg}</div><div style={{display:"flex",gap:10}}><button className="btn" onClick={onClose} style={{flex:1,border:`1px solid ${C.border}`,color:C.muted,borderRadius:9,padding:"11px",fontSize:14,cursor:"pointer"}}>Zrušit</button><button className="btn" onClick={()=>{onConfirm();onClose();}} style={{flex:1,background:C.err,color:"#fff",border:"none",borderRadius:9,padding:"11px",fontSize:14,fontWeight:700,cursor:"pointer"}}>{label}</button></div></div></Modal>);
 }
-function IOSToggle({value,onChange}){
+export function IOSToggle({value,onChange}){
   return(<div onClick={()=>onChange(!value)} style={{width:46,height:26,borderRadius:13,flexShrink:0,background:value?"#5cb88a":"#3e4455",position:"relative",cursor:"pointer",transition:"background .25s"}}><div style={{position:"absolute",top:3,left:value?23:3,width:20,height:20,borderRadius:"50%",background:"white",transition:"left .25s",boxShadow:"0 1px 4px rgba(0,0,0,.4)"}}/></div>);
 }
 
 /* ─── Settings Dropdown ──────────────────────────────────────── */
-function SettingsDropdown({autoPlay,onToggle}){
+export function SettingsDropdown({autoPlay,onToggle}){
   const [open,setOpen]=useState(false);
   const ref=useRef(null);
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
@@ -34,7 +34,7 @@ function SettingsDropdown({autoPlay,onToggle}){
 
 /* ─── Lang Dropdown ──────────────────────────────────────────── */
 /* ─── Lang Modal (shared add + edit) ────────────────────────── */
-function LangModal({initial, onClose, onSave, title}) {
+export function LangModal({initial, onClose, onSave, title}) {
   const [f,setF]=useState(initial ?? {label:"",flag:"🌐",code:"",nativeCode:"CZ",studyCode:""});
   const upd=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const valid=f.label.trim()&&f.nativeCode.trim()&&f.studyCode.trim();
@@ -87,7 +87,7 @@ function LangModal({initial, onClose, onSave, title}) {
 }
 
 /* ─── Lang Dropdown ──────────────────────────────────────────── */
-function LangDropdown({langs,activeId,onSwitch,onAddLang,onEditLang,onDeleteLang}){
+export function LangDropdown({langs,activeId,onSwitch,onAddLang,onEditLang,onDeleteLang}){
   const [open,setOpen]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
   const [editLang,setEditLang]=useState(null);
@@ -143,7 +143,7 @@ function LangDropdown({langs,activeId,onSwitch,onAddLang,onEditLang,onDeleteLang
   </>);
 }
 
-function UploadModal({onClose,onUpload}){
+export function UploadModal({onClose,onUpload}){
   const [drag,setDrag]=useState(false);const fRef=useRef(null);
   return(<Modal onClose={onClose}>
     <div style={{marginBottom:18}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:C.gold,marginBottom:4}}>Nahrát nový balíček</div><div style={{fontSize:13,color:C.muted}}>Excel nebo CSV soubor</div></div>
@@ -167,7 +167,7 @@ function UploadModal({onClose,onUpload}){
 }
 
 /* ─── Add Word Modal ─────────────────────────────────────────── */
-function AddWordModal({onClose,onAdd}){
+export function AddWordModal({onClose,onAdd}){
   const [f,setF]=useState({en:"",cs:"",ex:"",syn:""});
   const upd=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   function submit(){if(!f.en.trim()||!f.cs.trim())return;onAdd({en:f.en.trim(),cs:f.cs.trim(),example:f.ex.trim(),synonyms:f.syn.trim()});onClose();}
@@ -187,7 +187,7 @@ function AddWordModal({onClose,onAdd}){
 }
 
 /* ─── Rename Deck Modal ──────────────────────────────────────── */
-function RenameModal({currentName,onClose,onRename}){
+export function RenameModal({currentName,onClose,onRename}){
   const [name,setName]=useState(currentName);
   return(<Modal onClose={onClose}>
     <div style={{marginBottom:14}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:C.gold,marginBottom:3}}>Přejmenovat balíček</div></div>
@@ -202,7 +202,7 @@ function RenameModal({currentName,onClose,onRename}){
 }
 
 /* ─── Stats Modal ────────────────────────────────────────────── */
-function StatsModal({deck,onClose,onReset}){
+export function StatsModal({deck,onClose,onReset}){
   const [sk,setSk]=useState("total-desc");
   const sorted=sortStats(deck.words,sk);
   const ds=deck.deckStats??{totalAnswers:0,correctAnswers:0,roundsCompleted:0};
@@ -255,7 +255,7 @@ function StatsModal({deck,onClose,onReset}){
 }
 
 /* ─── Onboarding Modal ───────────────────────────────────────── */
-function OnboardingModal({onSample,onUpload,onClose}){
+export function OnboardingModal({onSample,onUpload,onClose}){
   const fRef=useRef(null);
   return(<Modal onClose={onClose}>
     <div style={{textAlign:"center",padding:"0.5rem 0 1rem"}}>
