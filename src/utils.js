@@ -109,11 +109,13 @@ export const uid = () => Math.random().toString(36).slice(2, 9);
 export const now = () => Date.now();
 
 export function norm(t) {
-  return (t || "").normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+  if (typeof t !== 'string') return "";
+  return t.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
 }
 
 export function parseSyn(f) {
-  return (f || "").split(/[\/,]/).map(s => s.trim()).filter(Boolean);
+  if (typeof f !== 'string') return [];
+  return f.split(/[\/,]/).map(s => s.trim()).filter(Boolean);
 }
 
 export function localMatch(input, field) {
