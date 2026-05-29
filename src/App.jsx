@@ -2,22 +2,68 @@ import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 
 /* ─── SM-2 Spaced Repetition ─────────────────────────────────── */
-function sm2Update(word, quality) {
-  const ef = Math.max(1.3, (word.ef??2.5)+0.1-(5-quality)*(0.08+(5-quality)*0.02));
-  const reps = quality<3 ? 0 : (word.reps??0)+1;
-  const iv = quality<3 ? 1 : reps<=1 ? 1 : reps===2 ? 6 : Math.round((word.iv??1)*ef);
-  return { ef, reps, iv, nextReview: Date.now()+iv*86400000 };
+/* ─── Vocabulary Miner Box Algorithm ────────────────────────── */
+// 8 krabiček s přesnými intervaly dle Vocabulary Miner
+const VM_INTERVALS=[0,1,2,3,5,10,30,60,90]; // index = číslo krabičky (1-8)
+
+function vmGetBox(word){return Math.max(1,Math.min(8,word.vmBox??1));}
+
+function vmUpdate(word, quality) {
+  // quality: 0=Nevím/špatně, 3=Tuším, 5=Vím/správně
+  const box=vmGetBox(word);
+  let newBox, newLastReview, newNextReview;
+  const now=Date.now();
+
+  if(quality>=5) {
+    // Vím → krabička +1, posunutí času
+    newBox=Math.min(8,box+1);
+    newLastReview=now;
+    newNextReview=now+VM_INTERVALS[newBox]*86400000;
+  } else if(quality===3) {
+    // Tuším → zůstane ve stejné krabičce, čas se NEposouvá
+    newBox=box;
+    newLastReview=word.vmLastReview??now;
+    newNextReview=word.vmNextReview??(now+VM_INTERVALS[box]*86400000);
+  } else {
+    // Nevím → krabička -3 (min 1), čas se NEposouvá
+    newBox=Math.max(1,box-3);
+    newLastReview=word.vmLastReview??now;
+    newNextReview=word.vmNextReview??(now+VM_INTERVALS[newBox]*86400000);
+  }
+  return {vmBox:newBox, vmLastReview:newLastReview, vmNextReview:newNextReview};
 }
-function pickRound(words, n=20) {
+
+function vmPickRound(words, n=20) {
   const t=Date.now();
-  const arr=[...words].map(w=>{
-    const due=!w.nextReview||w.nextReview<=t;
-    return {w, urgency: due?(t-(w.nextReview??0)+Math.random()*3600000):(-(w.nextReview-t)+Math.random()*1800000)};
-  });
-  arr.sort((a,b)=>b.urgency-a.urgency);
-  return arr.slice(0,Math.min(n,arr.length)).map(x=>x.w);
+  // Pouze slova kde uplynula povinná přestávka
+  const due=words.filter(w=>!w.vmNextReview||w.vmNextReview<=t);
+  // Pokud méně než 20 due, doplníme nejbliž brzy splatnými
+  let pool=due.length>=n ? due : [...words].sort((a,b)=>(a.vmNextReview??0)-(b.vmNextReview??0)).slice(0,n);
+  // Seřaď podle krabičky od nejmenší (dle Vocabulary Miner pseudokódu)
+  pool=[...pool].sort((a,b)=>vmGetBox(a)-vmGetBox(b));
+  if(pool.length<=n) return shuffle(pool);
+  // Vocabulary Miner pseudokód pro výběr 20 slov
+  const result=[];
+  let ci=0;
+  for(let i=0;i<n;i++){
+    ci=ci+Math.floor(Math.random()*(pool.length-ci)/(n-i)+0.99);
+    ci=Math.min(ci,pool.length-1);
+    result.push(pool[ci]);
+  }
+  return shuffle(result);
 }
-function dueCount(words) { const t=Date.now(); return words.filter(w=>!w.nextReview||w.nextReview<=t).length; }
+
+function shuffle(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+function vmDueCount(words){const t=Date.now();return words.filter(w=>!w.vmNextReview||w.vmNextReview<=t).length;}
+
+// Legacy pickRound kept for compatibility
+function pickRound(words,n=20){return vmPickRound(words,n);}
+function dueCount(words){return vmDueCount(words);}
 
 /* ─── XP & Levels ────────────────────────────────────────────── */
 const LVL_XP=[0,100,250,500,1000,2000,4000,7500,13000,22000,36000];
@@ -29,7 +75,7 @@ function getLevel(xp) {
 }
 function calcXP(quality, combo, isFlip=false) {
   if(quality<3) return 0;
-  if(isFlip) return 1; // karty: 1 XP za správně, 0 za tuším/nevím
+  if(isFlip) return 1;
   const base = quality===5 ? 10 : 5;
   const mult = quality<5 ? 1 : combo>=10?3:combo>=5?2:combo>=3?1.5:1;
   return Math.round(base*mult);
@@ -65,7 +111,35 @@ async function fetchDict(word) {
     _dc.set(k,res); return res;
   } catch {_dc.set(k,null);return null;}
 }
-function playAudio(url){try{new Audio(url).play();}catch{}}
+
+/* Play audio URL with normalized volume via Web Audio API */
+function playAudio(url) {
+  if(!url) return;
+  try {
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    fetch(url)
+      .then(r=>r.arrayBuffer())
+      .then(buf=>ctx.decodeAudioData(buf))
+      .then(decoded=>{
+        const src=ctx.createBufferSource();
+        const gain=ctx.createGain();
+        // Normalize: target peak = 0.75 to avoid clipping and ensure consistent volume
+        let peak=0;
+        for(let ch=0;ch<decoded.numberOfChannels;ch++){
+          const data=decoded.getChannelData(ch);
+          for(let i=0;i<data.length;i++) peak=Math.max(peak,Math.abs(data[i]));
+        }
+        gain.gain.value=peak>0?Math.min(0.75/peak,3):1; // cap at 3x amplification
+        src.buffer=decoded;
+        src.connect(gain);gain.connect(ctx.destination);
+        src.start(0);
+      }).catch(()=>{ new Audio(url).play().catch(()=>{}); });
+  } catch {
+    try{new Audio(url).play();}catch{}
+  }
+}
+
+
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 const uid=()=>Math.random().toString(36).slice(2,9);
@@ -95,8 +169,30 @@ function lev(a,b){
 function playSound(type){
   try{
     const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    if(type==="ok"){[[523,0,.1],[659,.08,.25],[784,.18,.42]].forEach(([f,s,e])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.frequency.value=f;o.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0,ctx.currentTime+s);g.gain.linearRampToValueAtTime(.18,ctx.currentTime+s+.04);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+e+.15);o.start(ctx.currentTime+s);o.stop(ctx.currentTime+e+.2);});}
-    else{[[330,0,.15],[277,.12,.32]].forEach(([f,s,e])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.frequency.value=f;o.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0,ctx.currentTime+s);g.gain.linearRampToValueAtTime(.12,ctx.currentTime+s+.04);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+e+.18);o.start(ctx.currentTime+s);o.stop(ctx.currentTime+e+.22);});}
+    const master=ctx.createGain();
+    master.gain.value=0.08; // master volume — quiet and unobtrusive
+    master.connect(ctx.destination);
+    if(type==="ok"){
+      // Soft two-tone chime
+      [[659,.0,.22],[784,.15,.38]].forEach(([f,s,e])=>{
+        const o=ctx.createOscillator(),g=ctx.createGain();
+        o.type="sine";o.frequency.value=f;
+        o.connect(g);g.connect(master);
+        g.gain.setValueAtTime(0,ctx.currentTime+s);
+        g.gain.linearRampToValueAtTime(1,ctx.currentTime+s+.03);
+        g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+e+.12);
+        o.start(ctx.currentTime+s);o.stop(ctx.currentTime+e+.15);
+      });
+    } else {
+      // Single soft low tone
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.type="sine";o.frequency.value=300;
+      o.connect(g);g.connect(master);
+      g.gain.setValueAtTime(0,ctx.currentTime);
+      g.gain.linearRampToValueAtTime(1,ctx.currentTime+.04);
+      g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.3);
+      o.start(ctx.currentTime);o.stop(ctx.currentTime+.35);
+    }
   }catch{}
 }
 function doSpeak(synth,text,lang){if(!synth||!text)return;synth.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=0.82;synth.speak(u);}
@@ -415,12 +511,13 @@ function StatsModal({deck,onClose,onReset}){
     </div>
     <div style={{overflowX:"auto"}}>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:480}}>
-        <thead><tr style={{borderBottom:`1px solid #1e2535`}}>{["#","Anglicky","Česky","Synonyma","Prox.","✓","✗","Úsp.","Interval"].map(h=><th key={h} style={{padding:"6px 8px",color:C.muted,fontWeight:500,fontSize:10,textTransform:"uppercase",letterSpacing:1,textAlign:h==="#"?"center":"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+        <thead><tr style={{borderBottom:`1px solid #1e2535`}}>{["#","Anglicky","Česky","Synonyma","Prox.","✓","✗","Úsp.","Krabička"].map(h=><th key={h} style={{padding:"6px 8px",color:C.muted,fontWeight:500,fontSize:10,textTransform:"uppercase",letterSpacing:1,textAlign:h==="#"?"center":"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
         <tbody>
           {sorted.map((w,i)=>{
             const ws=w.wStats??{total:0,correct:0,wrong:0},pct=ws.total?Math.round(ws.correct/ws.total*100):null,pc=pct===null?C.muted:pct>=80?C.ok:pct>=50?C.gold:C.err;
             const syns=[...parseSyn(w.cs).slice(1),...parseSyn(w.synonyms||"")].join(", ");
-            const daysLeft=w.nextReview?Math.max(0,Math.round((w.nextReview-Date.now())/86400000)):null;
+            const daysLeft=w.vmNextReview?Math.max(0,Math.round((w.vmNextReview-Date.now())/86400000)):null;
+            const vmBox=vmGetBox(w);
             return(<tr key={w.id} style={{borderBottom:`1px solid #161e2e`}} onMouseEnter={e=>e.currentTarget.style.background="#0e1525"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <td style={{padding:"7px 8px",color:C.muted,textAlign:"center",fontSize:10}}>{i+1}</td>
               <td style={{padding:"7px 8px",color:C.text,fontWeight:500}}>{w.en}</td>
@@ -430,7 +527,10 @@ function StatsModal({deck,onClose,onReset}){
               <td style={{padding:"7px 8px",color:C.ok,textAlign:"center"}}>{ws.correct||"—"}</td>
               <td style={{padding:"7px 8px",color:C.err,textAlign:"center"}}>{ws.wrong||"—"}</td>
               <td style={{padding:"7px 8px",textAlign:"center"}}>{pct!==null?<span style={{background:pc+"22",color:pc,borderRadius:20,padding:"2px 8px",fontWeight:600,fontSize:11}}>{pct}%</span>:<span style={{color:C.mutedDark}}>—</span>}</td>
-              <td style={{padding:"7px 8px",textAlign:"center",color:C.muted,fontSize:11}}>{daysLeft===null?"nové":daysLeft===0?"dnes":`${daysLeft}d`}</td>
+              <td style={{padding:"7px 8px",textAlign:"center"}}>
+                <span style={{background:"#1a2035",color:C.gold,borderRadius:20,padding:"2px 8px",fontSize:11,fontWeight:600}}>#{vmBox}</span>
+                {daysLeft!==null&&<span style={{color:C.muted,fontSize:10,marginLeft:4}}>{daysLeft===0?"dnes":`${daysLeft}d`}</span>}
+              </td>
             </tr>);
           })}
         </tbody>
@@ -460,17 +560,109 @@ function OnboardingModal({onSample,onUpload,onClose}){
 /* ══════════════════════════════════════════════════════════════
    HOME SCREEN
 ══════════════════════════════════════════════════════════════ */
-function HomeScreen({decks,langs,activeLang,gameStats,onLangSwitch,onAddLang,onEditLang,onDeleteLang,onSelect,onFileUpload,onSampleDeck}){
+/* ─── Folder Modal ───────────────────────────────────────────── */
+function FolderModal({initial, onClose, onSave, title}) {
+  const [name,setName]=useState(initial?.name??"");
+  return(
+    <Modal onClose={onClose}>
+      <div style={{marginBottom:14}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:C.gold,marginBottom:3}}>{title}</div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <input className="inp-sm" value={name} onChange={e=>setName(e.target.value)}
+          placeholder="Název složky…" autoFocus
+          onKeyDown={e=>e.key==="Enter"&&name.trim()&&onSave(name.trim())}/>
+        <div style={{display:"flex",gap:8}}>
+          <button className="btn" onClick={onClose} style={{flex:1,border:`1px solid ${C.border}`,color:C.muted,borderRadius:9,padding:"10px",fontSize:14,cursor:"pointer"}}>Zrušit</button>
+          <button className="btn" onClick={()=>name.trim()&&onSave(name.trim())}
+            style={{flex:2,background:name.trim()?C.gold:"#1a2030",color:name.trim()?C.bg:"#4a5060",border:"none",borderRadius:9,padding:"10px",fontSize:14,fontWeight:700,cursor:"pointer",transition:"all .2s"}}>
+            Uložit
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ─── Move to Folder Modal ───────────────────────────────────── */
+function MoveFolderModal({deck, folders, currentFolderId, onClose, onMove}) {
+  const [selected,setSelected]=useState(currentFolderId??null);
+  return(
+    <Modal onClose={onClose}>
+      <div style={{marginBottom:14}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,color:C.gold,marginBottom:3}}>Přesunout balíček</div>
+        <div style={{fontSize:13,color:C.muted}}>„{deck.name}"</div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
+        {/* no folder option */}
+        <div onClick={()=>setSelected(null)}
+          style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:selected===null?"#1a2a45":"transparent",border:`1px solid ${selected===null?"#3a5080":C.border}`,borderRadius:10,cursor:"pointer",transition:"all .15s"}}>
+          <span style={{fontSize:18}}>📋</span>
+          <span style={{fontSize:13,color:selected===null?C.gold:C.textDim}}>Bez složky (hlavní stránka)</span>
+          {selected===null&&<span style={{marginLeft:"auto",color:C.ok,fontSize:12}}>✓</span>}
+        </div>
+        {folders.map(f=>(
+          <div key={f.id} onClick={()=>setSelected(f.id)}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:selected===f.id?"#1a2a45":"transparent",border:`1px solid ${selected===f.id?"#3a5080":C.border}`,borderRadius:10,cursor:"pointer",transition:"all .15s"}}>
+            <span style={{fontSize:18}}>📁</span>
+            <span style={{fontSize:13,color:selected===f.id?C.gold:C.textDim}}>{f.name}</span>
+            {selected===f.id&&<span style={{marginLeft:"auto",color:C.ok,fontSize:12}}>✓</span>}
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <button className="btn" onClick={onClose} style={{flex:1,border:`1px solid ${C.border}`,color:C.muted,borderRadius:9,padding:"10px",fontSize:14,cursor:"pointer"}}>Zrušit</button>
+        <button className="btn" onClick={()=>{onMove(selected);onClose();}}
+          style={{flex:2,background:C.gold,color:C.bg,border:"none",borderRadius:9,padding:"10px",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+          Přesunout
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+
+function HomeScreen({decks,langs,activeLang,gameStats,folders,onLangSwitch,onAddLang,onEditLang,onDeleteLang,onSelect,onFileUpload,onSampleDeck,onAddFolder,onRenameFolder,onDeleteFolder,onMoveDeck}){
   const [sort,setSort]=useState("date-desc");
   const [showUpload,setShowUpload]=useState(false);
+  const [showAddFolder,setShowAddFolder]=useState(false);
+  const [editFolder,setEditFolder]=useState(null);
+  const [delFolder,setDelFolder]=useState(null);
+  const [moveInfo,setMoveInfo]=useState(null);
+  const [openFolders,setOpenFolders]=useState({});
   const ld=sortDecks(decks.filter(d=>d.lang===activeLang),sort);
   const lc=langs.find(l=>l.id===activeLang)||langs[0];
   const lvl=getLevel(gameStats.xp??0);
   const streak=gameStats.dailyStreak??0;
+  const langFolders=folders.filter(f=>f.lang===activeLang);
+  const decksInFolder=fid=>ld.filter(d=>d.folderId===fid);
+  const looseDecks=ld.filter(d=>!d.folderId||!langFolders.find(f=>f.id===d.folderId));
+  function DeckCard({d}){
+    const mastered=d.words.filter(w=>(w.score??0)>=3).length;
+    const pct=d.words.length?Math.round(mastered/d.words.length*100):0;
+    const due=dueCount(d.words);
+    const sr=d.deckStats?.totalAnswers?Math.round(d.deckStats.correctAnswers/d.deckStats.totalAnswers*100):null;
+    return(<div style={{position:"relative"}}>
+      <div onClick={()=>onSelect(d.id)} className="btn" style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"1.2rem",cursor:"pointer",transition:"border-color .2s",textAlign:"left",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.borderColor="#3a5080"} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+        {due>0&&<div style={{position:"absolute",top:10,right:34,background:"#3a1a08",border:"1px solid #8a4020",borderRadius:20,padding:"2px 7px",fontSize:10,color:"#d08050",fontWeight:600}}>{due} dnes</div>}
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:700,color:C.text,marginBottom:4,lineHeight:1.2,paddingRight:42}}>{d.name}</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:10}}>{d.words.length} slov · {mastered} zvl.{sr!==null?` · ${sr}%`:""}</div>
+        <div style={{background:"#161e30",borderRadius:3,height:3}}><div style={{width:`${pct}%`,height:"100%",background:C.gold,borderRadius:3}}/></div>
+        <div style={{fontSize:10,color:C.goldDim,marginTop:4,textAlign:"right"}}>{pct}% zvládnuto</div>
+      </div>
+      <button className="btn" onClick={e=>{e.stopPropagation();setMoveInfo({deck:d});}} title="Přesunout do složky"
+        style={{position:"absolute",top:8,right:6,color:C.mutedDark,fontSize:13,padding:"3px 5px",lineHeight:1}}
+        onMouseEnter={e=>e.currentTarget.style.color=C.gold} onMouseLeave={e=>e.currentTarget.style.color=C.mutedDark}>📁</button>
+    </div>);
+  }
   return(
     <div style={{minHeight:"100dvh",background:C.bg,fontFamily:"'Lora',Georgia,serif",color:C.text,display:"flex",flexDirection:"column",alignItems:"center",padding:"1.5rem 1rem",overscrollBehavior:"none"}}>
       <style>{STYLE}</style>
       {showUpload&&<UploadModal onClose={()=>setShowUpload(false)} onUpload={onFileUpload}/>}
+      {showAddFolder&&<FolderModal title="Nová složka" onClose={()=>setShowAddFolder(false)} onSave={name=>{onAddFolder(name);setShowAddFolder(false);}}/>}
+      {editFolder&&<FolderModal title="Přejmenovat složku" initial={editFolder} onClose={()=>setEditFolder(null)} onSave={name=>{onRenameFolder(editFolder.id,name);setEditFolder(null);}}/>}
+      {delFolder&&<ConfirmModal title="Smazat složku?" msg={`Balíčky ve složce budou přesunuty na hlavní stránku.`} label="Smazat složku" onConfirm={()=>{onDeleteFolder(delFolder.id);}} onClose={()=>setDelFolder(null)}/>}
+      {moveInfo&&<MoveFolderModal deck={moveInfo.deck} folders={langFolders} currentFolderId={moveInfo.deck.folderId} onClose={()=>setMoveInfo(null)} onMove={fid=>onMoveDeck(moveInfo.deck.id,fid)}/>}
       {/* header */}
       <div style={{width:"100%",maxWidth:780,display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"1rem",gap:10}}>
         <div>
@@ -501,15 +693,22 @@ function HomeScreen({decks,langs,activeLang,gameStats,onLangSwitch,onAddLang,onE
           </div>
         )}
       </div>
-      {/* add deck button */}
-      <div style={{width:"100%",maxWidth:780,marginBottom:"0.9rem"}}>
+      {/* actions row: add deck + new folder */}
+      <div style={{width:"100%",maxWidth:780,display:"flex",gap:8,marginBottom:"0.9rem"}}>
         <button className="btn" onClick={()=>setShowUpload(true)}
-          style={{width:"100%",display:"flex",alignItems:"center",gap:12,background:"#0e1520",border:`1.5px dashed #2a3650`,borderRadius:14,padding:"12px 16px",cursor:"pointer",transition:"all .2s",textAlign:"left"}}
+          style={{flex:1,display:"flex",alignItems:"center",gap:10,background:"#0e1520",border:`1.5px dashed #2a3650`,borderRadius:14,padding:"11px 14px",cursor:"pointer",transition:"all .2s",textAlign:"left"}}
           onMouseEnter={e=>{e.currentTarget.style.borderColor=C.gold;e.currentTarget.style.background="rgba(212,168,83,.04)";}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor="#2a3650";e.currentTarget.style.background="#0e1520";}}>
-          <div style={{width:34,height:34,background:"#1a2535",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>📊</div>
-          <div><div style={{fontSize:14,color:C.gold,fontFamily:"'Playfair Display',serif",fontWeight:700}}>Přidat nový balíček</div><div style={{fontSize:11,color:C.muted,marginTop:1}}>Nahrej .xlsx nebo .csv soubor</div></div>
-          <div style={{marginLeft:"auto",fontSize:20,color:"#2a3650"}}>+</div>
+          <div style={{width:30,height:30,background:"#1a2535",borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>📊</div>
+          <div style={{fontSize:13,color:C.gold,fontFamily:"'Playfair Display',serif",fontWeight:700}}>Přidat balíček</div>
+          <div style={{marginLeft:"auto",fontSize:18,color:"#2a3650"}}>+</div>
+        </button>
+        <button className="btn" onClick={()=>setShowAddFolder(true)}
+          style={{display:"flex",alignItems:"center",gap:8,background:"#0e1520",border:`1px solid #2a3650`,borderRadius:14,padding:"11px 14px",cursor:"pointer",transition:"all .2s",whiteSpace:"nowrap"}}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor=C.gold;e.currentTarget.style.background="rgba(212,168,83,.04)";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor="#2a3650";e.currentTarget.style.background="#0e1520";}}>
+          <span style={{fontSize:18}}>📁</span>
+          <span style={{fontSize:13,color:C.textDim}}>Nová složka</span>
         </button>
       </div>
       {/* sort */}
@@ -517,29 +716,43 @@ function HomeScreen({decks,langs,activeLang,gameStats,onLangSwitch,onAddLang,onE
         <span style={{fontSize:10,color:C.mutedDark,textTransform:"uppercase",letterSpacing:2,flexShrink:0}}>Řadit:</span>
         {DECK_SORTS.map(s=><button key={s.id} className="btn" onClick={()=>setSort(s.id)} style={{background:sort===s.id?"#1a2a40":"transparent",border:`1px solid ${sort===s.id?"#2e4565":C.border}`,color:sort===s.id?C.gold:C.muted,borderRadius:8,padding:"4px 11px",fontSize:11,cursor:"pointer"}}>{s.label}</button>)}
       </div>
-      {/* decks */}
-      <div style={{width:"100%",maxWidth:780,flex:1}}>
+      {/* decks + folders */}
+      <div style={{width:"100%",maxWidth:780,flex:1,display:"flex",flexDirection:"column",gap:14}}>
         {ld.length===0?(
           <div style={{textAlign:"center",padding:"3rem 0",color:C.muted,fontSize:14,fontStyle:"italic"}}>
             Žádné balíčky pro {lc?.label}
             <div style={{marginTop:12}}><button className="btn" onClick={onSampleDeck} style={{background:"#1a2535",border:`1px solid #2a3650`,color:"#7090b8",borderRadius:10,padding:"9px 18px",fontSize:13,cursor:"pointer"}}>🎓 Načíst ukázkový balíček</button></div>
           </div>
         ):(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:12}}>
-            {ld.map(d=>{
-              const mastered=d.words.filter(w=>(w.score??0)>=3).length;
-              const pct=d.words.length?Math.round(mastered/d.words.length*100):0;
-              const due=dueCount(d.words);
-              const sr=d.deckStats?.totalAnswers?Math.round(d.deckStats.correctAnswers/d.deckStats.totalAnswers*100):null;
-              return(<div key={d.id} onClick={()=>onSelect(d.id)} className="btn" style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"1.2rem",cursor:"pointer",transition:"border-color .2s",textAlign:"left",position:"relative"}} onMouseEnter={e=>e.currentTarget.style.borderColor="#3a5080"} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
-                {due>0&&<div style={{position:"absolute",top:10,right:10,background:"#3a1a08",border:"1px solid #8a4020",borderRadius:20,padding:"2px 8px",fontSize:10,color:"#d08050",fontWeight:600}}>{due} dnes</div>}
-                <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:700,color:C.text,marginBottom:4,lineHeight:1.2,paddingRight:due>0?50:0}}>{d.name}</div>
-                <div style={{fontSize:11,color:C.muted,marginBottom:10}}>{d.words.length} slov · {mastered} zvl.{sr!==null?` · ${sr}%`:""}</div>
-                <div style={{background:"#161e30",borderRadius:3,height:3}}><div style={{width:`${pct}%`,height:"100%",background:C.gold,borderRadius:3}}/></div>
-                <div style={{fontSize:10,color:C.goldDim,marginTop:4,textAlign:"right"}}>{pct}% zvládnuto</div>
+          <>
+            {langFolders.map(f=>{
+              const fDecks=decksInFolder(f.id);
+              const isOpen=openFolders[f.id]!==false;
+              return(<div key={f.id} style={{background:"#0e1420",border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",userSelect:"none"}} onClick={()=>setOpenFolders(o=>({...o,[f.id]:!isOpen}))}>
+                  <span style={{fontSize:16}}>{isOpen?"📂":"📁"}</span>
+                  <span style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,color:C.text,flex:1}}>{f.name}</span>
+                  <span style={{fontSize:11,color:C.muted}}>{fDecks.length} bal.</span>
+                  <button className="btn" onClick={e=>{e.stopPropagation();setEditFolder(f);}} style={{color:C.mutedDark,fontSize:13,padding:"2px 5px"}} onMouseEnter={e=>e.currentTarget.style.color=C.gold} onMouseLeave={e=>e.currentTarget.style.color=C.mutedDark}>✏️</button>
+                  <button className="btn" onClick={e=>{e.stopPropagation();setDelFolder(f);}} style={{color:C.mutedDark,fontSize:14,padding:"2px 5px"}} onMouseEnter={e=>e.currentTarget.style.color=C.err} onMouseLeave={e=>e.currentTarget.style.color=C.mutedDark}>×</button>
+                  <span style={{fontSize:11,color:C.muted}}>{isOpen?"▲":"▼"}</span>
+                </div>
+                {isOpen&&<div style={{padding:"0 10px 10px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(175px,1fr))",gap:10}}>
+                  {fDecks.length===0
+                    ? <div style={{color:C.muted,fontSize:12,fontStyle:"italic",padding:"8px 4px",gridColumn:"1/-1"}}>Složka je prázdná — přesuň sem balíček pomocí 📁</div>
+                    : fDecks.map(d=><DeckCard key={d.id} d={d}/>)}
+                </div>}
               </div>);
             })}
-          </div>
+            {looseDecks.length>0&&(
+              <div>
+                {langFolders.length>0&&<div style={{fontSize:10,color:C.mutedDark,textTransform:"uppercase",letterSpacing:2,marginBottom:8}}>Bez složky</div>}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(175px,1fr))",gap:12}}>
+                  {looseDecks.map(d=><DeckCard key={d.id} d={d}/>)}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -549,7 +762,43 @@ function HomeScreen({decks,langs,activeLang,gameStats,onLangSwitch,onAddLang,onE
 /* ══════════════════════════════════════════════════════════════
    DECK SCREEN
 ══════════════════════════════════════════════════════════════ */
-function DeckScreen({deck,langCfg,onBack,onStart,onUpdate,onAddWord,onDeleteWord,onDeleteDeck,onRename,onResetStats}){
+/* ─── Deck Settings Dropdown (⚙️) ───────────────────────────── */
+function DeckSettingsDropdown({onDelete, onExport}) {
+  const [open,setOpen]=useState(false);
+  const ref=useRef(null);
+  useEffect(()=>{
+    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);
+  },[]);
+  return(
+    <div ref={ref} style={{position:"relative",flexShrink:0}}>
+      <button className="btn" onClick={()=>setOpen(o=>!o)}
+        style={{background:open?"#1e2a45":"transparent",border:`1px solid ${open?"#3a5080":C.border}`,color:open?C.gold:C.muted,borderRadius:8,padding:"5px 10px",fontSize:16,cursor:"pointer",lineHeight:1,transition:"all .2s"}}>
+        ⚙️
+      </button>
+      {open&&(
+        <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:"#111e30",border:`1px solid #2a3650`,borderRadius:12,overflow:"hidden",minWidth:180,zIndex:50,boxShadow:"0 8px 28px rgba(0,0,0,.6)"}}>
+          <button className="btn" onClick={()=>{onExport();setOpen(false);}}
+            style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"11px 14px",color:C.textDim,fontSize:13,textAlign:"left",transition:"background .15s"}}
+            onMouseEnter={e=>e.currentTarget.style.background="#161e30"}
+            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <span style={{fontSize:16}}>📥</span> Export do Excelu
+          </button>
+          <div style={{borderTop:`1px solid ${C.border}`}}/>
+          <button className="btn" onClick={()=>{onDelete();setOpen(false);}}
+            style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"11px 14px",color:C.err,fontSize:13,textAlign:"left",transition:"background .15s"}}
+            onMouseEnter={e=>e.currentTarget.style.background="#1a0a0a"}
+            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <span style={{fontSize:16}}>🗑️</span> Smazat balíček
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function DeckScreen({deck,langCfg,hasSavedSession,onBack,onStart,onResume,onUpdate,onAddWord,onDeleteWord,onDeleteDeck,onRename,onResetStats,onExport}){
   const [wSort,setWSort]=useState("date-asc");
   const [showAdd,setShowAdd]=useState(false);
   const [showStats,setShowStats]=useState(false);
@@ -576,7 +825,7 @@ function DeckScreen({deck,langCfg,onBack,onStart,onUpdate,onAddWord,onDeleteWord
           <div style={{flex:1}}/>
           <button className="btn" onClick={()=>setShowStats(true)} style={{border:`1px solid #2a3555`,color:"#7090c8",borderRadius:8,padding:"5px 11px",fontSize:12,cursor:"pointer",flexShrink:0}}>📊 Stat.</button>
           <button className="btn" onClick={()=>setShowAdd(true)} style={{border:`1px solid #2e4060`,color:"#7090b8",borderRadius:8,padding:"5px 11px",fontSize:12,cursor:"pointer",flexShrink:0}}>+ Slovo</button>
-          <button className="btn" onClick={()=>setShowDelDeck(true)} style={{border:"1px solid #3a1515",color:"#7a4040",borderRadius:8,padding:"5px 11px",fontSize:12,cursor:"pointer",flexShrink:0}}>Smazat</button>
+          <DeckSettingsDropdown onDelete={()=>setShowDelDeck(true)} onExport={onExport}/>
         </div>
         {/* Row 2: ✏️ Deck name  |  Učení ▶ */}
         <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -584,10 +833,18 @@ function DeckScreen({deck,langCfg,onBack,onStart,onUpdate,onAddWord,onDeleteWord
             <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:C.gold,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{deck.name}</div>
             <button className="btn" onClick={()=>setShowRename(true)} style={{color:C.muted,fontSize:14,flexShrink:0,opacity:.7}} title="Přejmenovat">✏️</button>
           </div>
-          <button className="btn" onClick={onStart} disabled={!deck.words.length}
-            style={{background:deck.words.length?C.gold:"#2a2a1a",color:deck.words.length?C.bg:"#5a5030",borderRadius:9,padding:"8px 20px",fontSize:14,fontWeight:700,cursor:deck.words.length?"pointer":"default",flexShrink:0}}>
-            Učení ▶
-          </button>
+          <div style={{display:"flex",gap:6,flexShrink:0}}>
+            {hasSavedSession&&(
+              <button className="btn" onClick={onResume}
+                style={{background:"#1a2535",border:`1px solid #3a5080`,color:"#7090c8",borderRadius:9,padding:"8px 14px",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                ↩ Pokračovat
+              </button>
+            )}
+            <button className="btn" onClick={onStart} disabled={!deck.words.length}
+              style={{background:deck.words.length?C.gold:"#2a2a1a",color:deck.words.length?C.bg:"#5a5030",borderRadius:9,padding:"8px 20px",fontSize:14,fontWeight:700,cursor:deck.words.length?"pointer":"default"}}>
+              Učení ▶
+            </button>
+          </div>
         </div>
         {/* Row 3: stats */}
         <div className="stat-grid">
@@ -845,6 +1102,7 @@ function FlipSwipeCard({word:w, dir, flipped, flipFlash, dictEntry, allSyn, onFl
 export default function LexiCard() {
   const [decks,setDecks]=useState([]);
   const [langs,setLangs]=useState(DEFAULT_LANGS);
+  const [folders,setFolders]=useState([]);
   const [screen,setScreen]=useState("home");
   const [deckId,setDeckId]=useState(null);
   const [activeLang,setLang]=useState("en");
@@ -884,11 +1142,21 @@ export default function LexiCard() {
 
   /* ── storage ── */
   useEffect(()=>{
-    try{const raw=localStorage.getItem("lc6_data");if(raw){const d=JSON.parse(raw);if(d.decks)setDecks(d.decks);if(d.lang)setLang(d.lang);if(d.langs)setLangs(p=>{const ids=new Set(p.map(l=>l.id));return[...p,...d.langs.filter(l=>!ids.has(l.id))];});if(d.gameStats)setGameStats(d.gameStats);}else setShowOnboarding(true);}catch{}
+    try{
+      const raw=localStorage.getItem("lc6_data");
+      if(raw){
+        const d=JSON.parse(raw);
+        if(d.decks)setDecks(d.decks);
+        if(d.lang)setLang(d.lang);
+        if(d.langs)setLangs(p=>{const ids=new Set(p.map(l=>l.id));return[...p,...d.langs.filter(l=>!ids.has(l.id))];});
+        if(d.gameStats)setGameStats(d.gameStats);
+        if(d.folders)setFolders(d.folders);
+      } else setShowOnboarding(true);
+    }catch{}
     setLoaded(true);
   },[]);
   useEffect(()=>{
-    if(loaded){try{localStorage.setItem("lc6_data",JSON.stringify({decks,lang:activeLang,langs:langs.filter(l=>l.custom),gameStats}));}catch{}}
+    if(loaded){try{localStorage.setItem("lc6_data",JSON.stringify({decks,lang:activeLang,langs:langs.filter(l=>l.custom),gameStats,folders}));}catch{}}
   },[decks,activeLang,langs,loaded,gameStats]);
 
   /* ── dict fetch ── */
@@ -948,7 +1216,7 @@ export default function LexiCard() {
       try{
         const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
         const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
-        const words=rows.filter(r=>r[0]&&r[1]).map(r=>({id:uid(),en:String(r[0]).trim(),cs:String(r[1]).trim(),example:r[2]?String(r[2]).trim():"",synonyms:r[3]?String(r[3]).trim():"",score:0,addedAt:now(),ef:2.5,reps:0,iv:1,nextReview:null,wStats:{total:0,correct:0,wrong:0}}));
+        const words=rows.filter(r=>r[0]&&r[1]).map(r=>({id:uid(),en:String(r[0]).trim(),cs:String(r[1]).trim(),example:r[2]?String(r[2]).trim():"",synonyms:r[3]?String(r[3]).trim():"",score:0,addedAt:now(),vmBox:1,vmLastReview:null,vmNextReview:null,wStats:{total:0,correct:0,wrong:0}}));
         if(!words.length){alert("Žádná slovíčka nenalezena.");return;}
         const d={id:uid(),name,lang:activeLang,words,createdAt:now(),deckStats:{totalAnswers:0,correctAnswers:0,roundsCompleted:0}};
         setDecks(ds=>[...ds,d]);setDeckId(d.id);setScreen("deck");
@@ -957,25 +1225,91 @@ export default function LexiCard() {
     rd.readAsArrayBuffer(file);
   }
   function loadSampleDeck(){
-    const words=SAMPLE_WORDS.map(w=>({id:uid(),...w,synonyms:"",score:0,addedAt:now(),ef:2.5,reps:0,iv:1,nextReview:null,wStats:{total:0,correct:0,wrong:0}}));
+    const words=SAMPLE_WORDS.map(w=>({id:uid(),...w,synonyms:"",score:0,addedAt:now(),vmBox:1,vmLastReview:null,vmNextReview:null,wStats:{total:0,correct:0,wrong:0}}));
     const d={id:uid(),name:"Ukázkový balíček",lang:activeLang,words,createdAt:now(),deckStats:{totalAnswers:0,correctAnswers:0,roundsCompleted:0}};
     setDecks(ds=>[...ds,d]);setDeckId(d.id);setScreen("deck");
   }
 
   /* ── deck ops ── */
   const updWord=(wid,field,val)=>setDecks(ds=>ds.map(d=>d.id!==deckId?d:{...d,words:d.words.map(w=>w.id!==wid?w:{...w,[field]:val})}));
-  function addWord({en,cs,example,synonyms}){setDecks(ds=>ds.map(d=>d.id!==deckId?d:{...d,words:[...d.words,{id:uid(),en,cs,example,synonyms:synonyms||"",score:0,addedAt:now(),ef:2.5,reps:0,iv:1,nextReview:null,wStats:{total:0,correct:0,wrong:0}}]}));}
+  function addWord({en,cs,example,synonyms}){setDecks(ds=>ds.map(d=>d.id!==deckId?d:{...d,words:[...d.words,{id:uid(),en,cs,example,synonyms:synonyms||"",score:0,addedAt:now(),vmBox:1,vmLastReview:null,vmNextReview:null,wStats:{total:0,correct:0,wrong:0}}]}));}
   const delWord=wid=>setDecks(ds=>ds.map(d=>d.id!==deckId?d:{...d,words:d.words.filter(w=>w.id!==wid)}));
   function delDeck(){setDecks(ds=>ds.filter(d=>d.id!==deckId));setScreen("home");}
   function renameDeck(name){setDecks(ds=>ds.map(d=>d.id!==deckId?d:{...d,name}));}
-  function resetStats(){setDecks(ds=>ds.map(d=>d.id!==deckId?d:{...d,deckStats:{totalAnswers:0,correctAnswers:0,roundsCompleted:0},words:d.words.map(w=>({...w,score:0,ef:2.5,reps:0,iv:1,nextReview:null,wStats:{total:0,correct:0,wrong:0}}))}));}
+  function resetStats(){setDecks(ds=>ds.map(d=>d.id!==deckId?d:{...d,deckStats:{totalAnswers:0,correctAnswers:0,roundsCompleted:0},words:d.words.map(w=>({...w,score:0,vmBox:1,vmLastReview:null,vmNextReview:null,wStats:{total:0,correct:0,wrong:0}}))}));}
   function addLang(l){setLangs(ls=>[...ls,l]);setLang(l.id);}
   function editLang(updated){setLangs(ls=>ls.map(l=>l.id===updated.id?updated:l));}
-  function deleteLang(id){setDecks(ds=>ds.filter(d=>d.lang!==id));setLangs(ls=>ls.filter(l=>l.id!==id));if(activeLang===id){const rem=langs.filter(l=>l.id!==id);if(rem.length)setLang(rem[0].id);}}
+  function deleteLang(id){setDecks(ds=>ds.filter(d=>d.lang!==id));setFolders(fs=>fs.filter(f=>f.lang!==id));setLangs(ls=>ls.filter(l=>l.id!==id));if(activeLang===id){const rem=langs.filter(l=>l.id!==id);if(rem.length)setLang(rem[0].id);}}
+
+  /* ── Folder ops ── */
+  function addFolder(name){setFolders(fs=>[...fs,{id:uid(),name,lang:activeLang,createdAt:now()}]);}
+  function renameFolder(fid,name){setFolders(fs=>fs.map(f=>f.id===fid?{...f,name}:f));}
+  function deleteFolder(fid){
+    setFolders(fs=>fs.filter(f=>f.id!==fid));
+    // move decks out of deleted folder
+    setDecks(ds=>ds.map(d=>d.folderId===fid?{...d,folderId:null}:d));
+  }
+  function moveDeck(did,folderId){setDecks(ds=>ds.map(d=>d.id===did?{...d,folderId:folderId??null}:d));}
+
+  /* ── Export deck to Excel ── */
+  function exportDeck(){
+    if(!deck) return;
+    const rows=[["Anglicky","Česky","Příkladová věta","Synonyma"],...deck.words.map(w=>[w.en,w.cs,w.example||"",w.synonyms||""])];
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,deck.name.slice(0,31));
+    XLSX.writeFile(wb,`${deck.name}.xlsx`);
+  }
 
   /* ── study helpers ── */
+  /* ── Session persistence (paměť sezení) ── */
+  function saveSession(words, idx, stats, combo, deckId, mode, translDir, flipDir) {
+    try {
+      localStorage.setItem("lc6_session", JSON.stringify({
+        deckId, rWords:words.map(w=>w.id), rIdx:idx,
+        rStats:stats, combo, mode, translDir, flipDir,
+        savedAt:Date.now()
+      }));
+    } catch {}
+  }
+  function clearSession() {
+    try { localStorage.removeItem("lc6_session"); } catch {}
+  }
+  function restoreSession(decks) {
+    try {
+      const raw = localStorage.getItem("lc6_session");
+      if(!raw) return null;
+      const s = JSON.parse(raw);
+      // Session expires after 24h
+      if(Date.now()-s.savedAt > 86400000) { clearSession(); return null; }
+      const deck = decks.find(d=>d.id===s.deckId);
+      if(!deck) return null;
+      const wordMap = new Map(deck.words.map(w=>[w.id,w]));
+      const rWords = (s.rWords||[]).map(id=>wordMap.get(id)).filter(Boolean);
+      if(rWords.length===0) return null;
+      return {rWords, rIdx:s.rIdx||0, rStats:s.rStats||{ok:0,bad:0,xp:0}, combo:s.combo||0, deckId:s.deckId, mode:s.mode||"transl", translDir:s.translDir||"en-cs", flipDir:s.flipDir||"en-cs"};
+    } catch { return null; }
+  }
+
   function clearCard(){clearTimeout(timerRef.current);clearInterval(intervalRef.current);setFB(null);setTx("");setMicErr("");setTyped("");setPronAtt(0);setWrongCountdown(0);setEvalLoading(false);setFlipped(false);setFlipFlash(null);}
-  function startStudy(){if(!deck?.words?.length)return;setRWords(pickRound(deck.words));setRIdx(0);setRStats({ok:0,bad:0,xp:0});setCombo(0);clearCard();setScreen("study");}
+
+  function startStudy(){
+    if(!deck?.words?.length)return;
+    const words=pickRound(deck.words);
+    setRWords(words);setRIdx(0);setRStats({ok:0,bad:0,xp:0});setCombo(0);clearCard();
+    saveSession(words,0,{ok:0,bad:0,xp:0},0,deckId,mode,translDir,flipDir);
+    setScreen("study");
+  }
+
+  function resumeStudy(decksSnap){
+    const s=restoreSession(decksSnap||decks);
+    if(!s) return;
+    setDeckId(s.deckId);
+    setRWords(s.rWords);setRIdx(s.rIdx);setRStats(s.rStats);setCombo(s.combo);
+    setMode(s.mode);setTranslDir(s.translDir);setFlipDir(s.flipDir);
+    clearCard();
+    setScreen("study");
+  }
 
   function nextCard(){
     clearTimeout(timerRef.current);clearInterval(intervalRef.current);
@@ -996,10 +1330,19 @@ export default function LexiCard() {
         setRoundEndData({xpEarned:totalXp,newLevel:newLvl>oldLvl?newLvl:null,streak:result.dailyStreak});
         return result;
       });
+      clearSession();
       setScreen("roundEnd");
-    } else setRIdx(nxt);
+    } else {
+      setRIdx(nxt);
+      saveSession(rWords,nxt,rStats,combo,deckId,mode,translDir,flipDir);
+    }
   }
-  function nextRound(){setRWords(pickRound(deck.words));setRIdx(0);setRStats({ok:0,bad:0,xp:0});setCombo(0);clearCard();setScreen("study");}
+  function nextRound(){
+    const words=pickRound(deck.words);
+    setRWords(words);setRIdx(0);setRStats({ok:0,bad:0,xp:0});setCombo(0);clearCard();
+    saveSession(words,0,{ok:0,bad:0,xp:0},0,deckId,mode,translDir,flipDir);
+    setScreen("study");
+  }
 
   /* ── mic ── */
   async function startListen(lang){
@@ -1026,9 +1369,9 @@ export default function LexiCard() {
     playSound(ok?"ok":"bad");
     const newCombo=quality>=5?combo+1:0;
     setCombo(newCombo);
-    const sm2=sm2Update(w,quality);
+    const vmUpd=vmUpdate(w,quality);
     setDecks(ds=>ds.map(d=>d.id!==deckId?d:{...d,
-      words:d.words.map(dw=>dw.id!==w.id?dw:{...dw,...sm2,score:quality>=3?(dw.score??0)+1:Math.max(0,(dw.score??0)-1),wStats:{total:(dw.wStats?.total??0)+1,correct:(dw.wStats?.correct??0)+(ok?1:0),wrong:(dw.wStats?.wrong??0)+(ok?0:1)}}),
+      words:d.words.map(dw=>dw.id!==w.id?dw:{...dw,...vmUpd,score:quality>=3?(dw.score??0)+1:Math.max(0,(dw.score??0)-1),wStats:{total:(dw.wStats?.total??0)+1,correct:(dw.wStats?.correct??0)+(ok?1:0),wrong:(dw.wStats?.wrong??0)+(ok?0:1)}}),
       deckStats:{totalAnswers:(d.deckStats?.totalAnswers??0)+1,correctAnswers:(d.deckStats?.correctAnswers??0)+(ok?1:0),roundsCompleted:d.deckStats?.roundsCompleted??0},
     }));
     setRStats(s=>({...s,ok:s.ok+(ok?1:0),bad:s.bad+(ok?0:1),xp:s.xp+xpGain}));
@@ -1062,11 +1405,11 @@ export default function LexiCard() {
     const newCombo=ok?combo+1:0;
     setCombo(newCombo);
     if(xpGain>0){/* XP shown only at round end */}
-    const sm2=sm2Update(w,quality);
+    const vmUpd=vmUpdate(w,quality);
     setFB({ok,answer:translDir==="en-cs"?w.cs:w.en,given,forced,quality});
     setRStats(s=>({...s,ok:s.ok+(ok?1:0),bad:s.bad+(ok?0:1),xp:s.xp+xpGain}));
     setDecks(ds=>ds.map(d=>d.id!==deckId?d:{...d,
-      words:d.words.map(dw=>dw.id!==w.id?dw:{...dw,...sm2,score:ok?(dw.score??0)+1:Math.max(0,(dw.score??0)-1),wStats:{total:(dw.wStats?.total??0)+1,correct:(dw.wStats?.correct??0)+(ok?1:0),wrong:(dw.wStats?.wrong??0)+(ok?0:1)}}),
+      words:d.words.map(dw=>dw.id!==w.id?dw:{...dw,...vmUpd,score:ok?(dw.score??0)+1:Math.max(0,(dw.score??0)-1),wStats:{total:(dw.wStats?.total??0)+1,correct:(dw.wStats?.correct??0)+(ok?1:0),wrong:(dw.wStats?.wrong??0)+(ok?0:1)}}),
       deckStats:{totalAnswers:(d.deckStats?.totalAnswers??0)+1,correctAnswers:(d.deckStats?.correctAnswers??0)+(ok?1:0),roundsCompleted:d.deckStats?.roundsCompleted??0},
     }));
   }
@@ -1079,10 +1422,20 @@ export default function LexiCard() {
   /* ── routing ── */
   if(screen==="home") return(<>
     {showOnboarding&&<OnboardingModal onSample={()=>{loadSampleDeck();setShowOnboarding(false);}} onUpload={f=>{loadFile(f);setShowOnboarding(false);}} onClose={()=>setShowOnboarding(false)}/>}
-    <HomeScreen decks={decks} langs={langs} activeLang={activeLang} gameStats={gameStats} onLangSwitch={setLang} onAddLang={addLang} onEditLang={editLang} onDeleteLang={deleteLang} onSelect={id=>{setDeckId(id);setScreen("deck");}} onFileUpload={loadFile} onSampleDeck={loadSampleDeck}/>
+    <HomeScreen decks={decks} langs={langs} activeLang={activeLang} gameStats={gameStats} folders={folders}
+      onLangSwitch={setLang} onAddLang={addLang} onEditLang={editLang} onDeleteLang={deleteLang}
+      onSelect={id=>{setDeckId(id);setScreen("deck");}} onFileUpload={loadFile} onSampleDeck={loadSampleDeck}
+      onAddFolder={addFolder} onRenameFolder={renameFolder} onDeleteFolder={deleteFolder} onMoveDeck={moveDeck}/>
   </>);
-  if(screen==="deck"&&deck){const lc=langs.find(l=>l.id===deck.lang)||langs[0];return <DeckScreen deck={deck} langCfg={lc} onBack={()=>setScreen("home")} onStart={startStudy} onUpdate={updWord} onAddWord={addWord} onDeleteWord={delWord} onDeleteDeck={delDeck} onRename={renameDeck} onResetStats={resetStats}/>;}
-  if(screen==="roundEnd") return <RoundEnd stats={rStats} total={rWords.length} deckName={deck?.name??""} xpEarned={roundEndData?.xpEarned??0} newLevel={roundEndData?.newLevel} streak={roundEndData?.streak} onNext={nextRound} onBack={()=>setScreen("deck")}/>;
+  if(screen==="deck"&&deck){
+    const lc=langs.find(l=>l.id===deck.lang)||langs[0];
+    const savedSess=restoreSession(decks);
+    const hasSavedSession=!!(savedSess&&savedSess.deckId===deck.id);
+    return <DeckScreen deck={deck} langCfg={lc} hasSavedSession={hasSavedSession}
+      onBack={()=>setScreen("home")} onStart={startStudy} onResume={()=>resumeStudy(decks)}
+      onUpdate={updWord} onAddWord={addWord} onDeleteWord={delWord} onDeleteDeck={delDeck}
+      onRename={renameDeck} onResetStats={resetStats} onExport={exportDeck}/>;
+  }  if(screen==="roundEnd") return <RoundEnd stats={rStats} total={rWords.length} deckName={deck?.name??""} xpEarned={roundEndData?.xpEarned??0} newLevel={roundEndData?.newLevel} streak={roundEndData?.streak} onNext={nextRound} onBack={()=>setScreen("deck")}/>;
 
   /* ══ STUDY ══════════════════════════════════════════════════ */
   const w=rWords[rIdx];if(!w)return null;
