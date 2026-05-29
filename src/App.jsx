@@ -3,11 +3,11 @@ import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 
 // --- NOVĚ PŘIDANÉ IMPORTY ---
-import { C, STYLE, DEFAULT_LANGS } from "./constants";
-import { checkStreak } from "./utils"; // Přidej další (např. uid, now), pokud je App.jsx reálně volá
-import HomeScreen from "./HomeScreen";
-import DeckScreen from "./DeckScreen";
-import StudyScreen from "./StudyScreen";
+import { C, STYLE, DEFAULT_LANGS } from "./constants.js";
+import { checkStreak } from "./utils.js"; // Přidej další (např. uid, now), pokud je App.jsx reálně volá
+import HomeScreen from "./homescreen.jsx";
+import DeckScreen from "./deckscreen.jsx";
+import StudyScreen from "./studyscreen.jsx";
 
 
 export default function App() {
