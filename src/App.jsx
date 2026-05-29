@@ -14,7 +14,7 @@ export default function App() {
   const [decks,setDecks]=useState([]);
   const [langs,setLangs]=useState(DEFAULT_LANGS);
   const [folders,setFolders]=useState([]);
-  const [screen,setScreen]=useState("home");
+  const [screen,setView]=useState("home");
   const [deckId,setDeckId]=useState(null);
   const [activeLang,setLang]=useState("en");
   const [loaded,setLoaded]=useState(false);
