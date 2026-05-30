@@ -7,10 +7,10 @@ import * as XLSX from "xlsx";
 // --- NOVĚ PŘIDANÉ IMPORTY ---
 import { C, STYLE, DEFAULT_LANGS } from "./constants.js";
 import { uid, now, sortDecks, vmPickRound, checkStreak, calcXP, getLevel, doSpeak, playAudio, fetchDict, vmUpdate, comboInfo, playSound } from "./utils.js";
-import HomeScreen from "./homescreen.jsx";
-import DeckScreen from "./deckscreen.jsx";
-import StudyScreen from "./studyscreen.jsx";
-import { RoundEnd } from "./studyscreen.jsx";
+import HomeScreen from "./HomeScreen.jsx";
+import DeckScreen from "./DeckScreen.jsx";
+import StudyScreen from "./StudyScreen.jsx";
+import { RoundEnd } from "./StudyScreen.jsx";
 
 
 export default function App() {
