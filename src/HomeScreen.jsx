@@ -2,7 +2,7 @@
 import React, { useState, useEffect /* další potřebné hooky */ } from 'react';
 import { C, DECK_SORTS, WORD_SORTS, DEFAULT_LANGS, STYLE /* atd. dle potřeby daného screenu */ } from './constants.js';
 import { uid, now, checkStreak, getLevel, sortDecks, dueCount /* atd. */ } from './utils.js';
-import { Modal, ConfirmModal, UploadModal, LangModal /* a další popupy */ } from './modals.jsx';
+import { Modal, ConfirmModal, OnboardingModal /* a další popupy */ } from './modals.jsx';
 /* ══════════════════════════════════════════════════════════════
    HOME SCREEN
 ══════════════════════════════════════════════════════════════ */
