@@ -10,7 +10,7 @@ import { Modal, ConfirmModal, SettingsDropdown, LangModal } from "./modals.jsx";
 /* ══════════════════════════════════════════════════════════════
    ROUND END
 ══════════════════════════════════════════════════════════════ */
-function RoundEnd({stats,total,deckName,xpEarned,newLevel,streak,onNext,onBack}){
+export function RoundEnd({stats,total,deckName,xpEarned,newLevel,streak,onNext,onBack}){
   const pct=total?Math.round(stats.ok/total*100):0;
   const em=pct>=90?"🏆":pct>=70?"👏":pct>=50?"💪":"📚";
   return(<div style={{minHeight:"100dvh",background:C.bg,fontFamily:"'Lora',Georgia,serif",color:C.text,display:"flex",alignItems:"center",justifyContent:"center",padding:"1.5rem",overscrollBehavior:"none"}}>
@@ -216,6 +216,8 @@ function FlipSwipeCard({word:w, dir, flipped, flipFlash, dictEntry, allSyn, onFl
   );
 }
 
-
-export { RoundEnd, FlipSwipeCard };
-export default FlipSwipeCard;
+export default function HomeScreen(props) {
+  return (
+    // Hlavní UI pro Home Screen
+  );
+}

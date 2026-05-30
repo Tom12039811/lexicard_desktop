@@ -224,5 +224,8 @@ function DeckScreen({deck,langCfg,hasSavedSession,onBack,onStart,onResume,onUpda
   </div>);
 }
 
-
-export default DeckScreen;
+export default function HomeScreen(props) {
+  return (
+    // Hlavní UI pro Home Screen
+  );
+}
