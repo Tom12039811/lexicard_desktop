@@ -1,6 +1,6 @@
 import { VM_INTERVALS, LVL_XP, LVL_NAMES } from "./constants.js";
 
-/* ─── SM-2 / Vocabulary Miner Box Algorithm ─────────────────── */
+/* ─── SM-2 / Vocabulary Box Algorithm ─────────────────── */
 export function vmGetBox(word) {
   return Math.max(1, Math.min(8, word.vmBox ?? 1));
 }
@@ -109,11 +109,13 @@ export const uid = () => Math.random().toString(36).slice(2, 9);
 export const now = () => Date.now();
 
 export function norm(t) {
-  return (t || "").normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+  if (typeof t !== 'string') return "";
+  return t.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
 }
 
 export function parseSyn(f) {
-  return (f || "").split(/[\/,]/).map(s => s.trim()).filter(Boolean);
+  if (typeof f !== 'string') return [];
+  return f.split(/[\/,]/).map(s => s.trim()).filter(Boolean);
 }
 
 export function localMatch(input, field) {
@@ -236,27 +238,5 @@ export async function fetchDict(word) {
   } catch { _dc.set(k, null); return null; }
 }
 
-export function playAudio(url) {
-  if (!url) return;
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    fetch(url)
-      .then(r => r.arrayBuffer())
-      .then(buf => ctx.decodeAudioData(buf))
-      .then(decoded => {
-        const src = ctx.createBufferSource();
-        const gain = ctx.createGain();
-        let peak = 0;
-        for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
-          const data = decoded.getChannelData(ch);
-          for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
-        }
-        gain.gain.value = peak > 0 ? Math.min(0.75 / peak, 3) : 1;
-        src.buffer = decoded;
-        src.connect(gain); gain.connect(ctx.destination);
-        src.start(0);
-      }).catch(() => { new Audio(url).play().catch(() => {}); });
-  } catch {
-    try { new Audio(url).play(); } catch {}
-  }
+export function playAudio(url){try{new Audio(url).play();}catch{}
 }
