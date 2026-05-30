@@ -1,9 +1,9 @@
-/* ─── Vocabulary Box Intervals ─────────────────────────── */
+/* ─── Vocabulary Miner Box Intervals ─────────────────────────── */
 export const VM_INTERVALS = [0, 1, 2, 3, 5, 10, 30, 60, 90]; // index = číslo krabičky (1-8)
 
 /* ─── XP & Levels ────────────────────────────────────────────── */
-export const LVL_XP = [0, 50, 150, 300, 500, 800, 1200, 1800, 2600, 3600, 5000, 7000, 10000];
-export const LVL_NAMES = ["Začátečník", "Učeň", "Student", "Mírně pokročilý", "Pokročilý", "Expert", "Mistr", "Šampion", "Legenda", "Guru", "Virtuóz", "Polobůh", "Mistr světa"];
+export const LVL_XP = [0, 100, 250, 500, 1000, 2000, 4000, 7500, 13000, 22000, 36000];
+export const LVL_NAMES = ["Začátečník","Learner","Student","Pokročilý","Expert","Mistr","Šampion","Legenda","Guru","Virtuóz","Mistr světa"];
 
 /* ─── Sample deck ────────────────────────────────────────────── */
 export const SAMPLE_WORDS = [
