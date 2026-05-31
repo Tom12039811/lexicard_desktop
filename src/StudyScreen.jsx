@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { C, STYLE, MODES } from "./constants.js";
 import { parseSyn, comboInfo } from "./utils.js";
 import { SettingsDropdown } from "./modals.jsx";
@@ -190,6 +190,85 @@ export function RoundEnd({ stats, total, deckName, xpEarned, newLevel, streak, o
 }
 
 /* ══════════════════════════════════════════════════════════════
+   DAILY DONE SCREEN
+══════════════════════════════════════════════════════════════ */
+export function DailyDoneScreen({ stats, deckName, onEnd, onContinue }) {
+  const pct = (stats.ok + stats.bad) ? Math.round(stats.ok / (stats.ok + stats.bad) * 100) : 0;
+  const [particles] = useState(() => Array.from({ length: 80 }, (_, i) => ({
+    id: i,
+    x: Math.random() * 100,
+    delay: Math.random() * 2.5,
+    dur: 2 + Math.random() * 2,
+    color: ["#c8a050", "#5cb88a", "#7090c8", "#e06060", "#c8d050", "#a050c8"][Math.floor(Math.random() * 6)],
+    size: 6 + Math.random() * 8,
+    drift: (Math.random() - 0.5) * 120,
+  })));
+
+  return (
+    <div style={{ minHeight: "100dvh", background: C.bg, fontFamily: "'Lora',Georgia,serif", color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", overscrollBehavior: "none", position: "relative", overflow: "hidden" }}>
+      <style>{STYLE}{`
+        @keyframes confettiFall {
+          0%   { transform: translateY(-20px) translateX(0) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(110vh) translateX(var(--drift)) rotate(720deg); opacity: 0; }
+        }
+        .confetti-piece {
+          position: fixed; top: -20px; border-radius: 3px;
+          animation: confettiFall var(--dur) ease-in var(--delay) both;
+          pointer-events: none; z-index: 0;
+        }
+        @keyframes popIn {
+          0%   { transform: scale(0.7); opacity: 0; }
+          70%  { transform: scale(1.08); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
+
+      {/* Confetti */}
+      {particles.map(p => (
+        <div key={p.id} className="confetti-piece" style={{
+          left: `${p.x}%`,
+          width: p.size, height: p.size,
+          background: p.color,
+          '--dur': `${p.dur}s`,
+          '--delay': `${p.delay}s`,
+          '--drift': `${p.drift}px`,
+        }} />
+      ))}
+
+      <div className="card-in" style={{ width: "100%", maxWidth: 400, textAlign: "center", position: "relative", zIndex: 1, animation: "popIn .5s ease both" }}>
+        <div style={{ fontSize: 64, marginBottom: 10 }}>🎉</div>
+        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, fontWeight: 700, color: C.gold, marginBottom: 6 }}>Dnes máte hotovo!</div>
+        <div style={{ fontSize: 14, color: C.muted, marginBottom: 24, fontStyle: "italic", lineHeight: 1.5 }}>Všechna dnešní slovíčka jsou splněna.<br />{deckName && <span style={{ color: C.textDim }}>{deckName}</span>}</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 9, marginBottom: 22 }}>
+          {[
+            { lbl: "Správně",   val: stats.ok,  bg: C.okBg,   c: C.ok },
+            { lbl: "Špatně",    val: stats.bad, bg: C.errBg,  c: C.err },
+            { lbl: "Úspěšnost", val: `${pct}%`, bg: "#1a2038", c: "#7090c8" },
+          ].map(({ lbl, val, bg, c }) => (
+            <div key={lbl} style={{ background: bg, borderRadius: 11, padding: "0.9rem 0.3rem" }}>
+              <div style={{ fontSize: 10, color: c, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5 }}>{lbl}</div>
+              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 23, fontWeight: 700, color: c }}>{val}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+          <button className="btn" onClick={onContinue}
+            style={{ background: "#1a2a45", border: `1.5px solid #3a5080`, color: C.gold, borderRadius: 11, padding: "13px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "'Playfair Display',serif" }}>
+            Pokračovat →
+          </button>
+          <button className="btn" onClick={onEnd}
+            style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.muted, borderRadius: 11, padding: "11px", fontSize: 14, cursor: "pointer" }}>
+            Konec
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
    STUDY SCREEN
 ══════════════════════════════════════════════════════════════ */
 export default function StudyScreen({
@@ -199,6 +278,7 @@ export default function StudyScreen({
   tx, micSt, micErr, iMode, typed, autoPlay, playSounds,
   pronAtt, evalLoading, wrongCountdown, dictEntry,
   mode, translDir, flipDir,
+  studyFolderId, folderName,
   onSetMode, onSetTranslDir, onSetFlipDir,
   onSetIMode, onSetTyped, onSetAutoPlay, onSetPlaySounds,
   onFlip, onFlipAnswer, onStartListen, onStopListen,
@@ -231,7 +311,7 @@ export default function StudyScreen({
 
       {/* top bar */}
       <div style={{ width: "100%", maxWidth: 680, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.75rem 1rem", borderBottom: `1px solid #1a1f2e`, gap: 8 }}>
-        <button className="btn" onClick={onBack} style={{ color: C.muted, fontSize: 12, flexShrink: 0 }}>← {deck?.name}</button>
+        <button className="btn" onClick={onBack} style={{ color: C.muted, fontSize: 12, flexShrink: 0 }}>← {folderName ? `📁 ${folderName}` : deck?.name}</button>
         <div style={{ flex: 1, maxWidth: 130 }}>
           <div style={{ fontSize: 10, color: C.muted, textAlign: "center", marginBottom: 3 }}>Kolo {rIdx + 1}/{rWords.length}</div>
           <div style={{ background: "#1a2030", borderRadius: 3, height: 3 }}>

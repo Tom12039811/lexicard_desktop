@@ -9,8 +9,15 @@ import {
 } from "./utils.js";
 import HomeScreen from "./HomeScreen.jsx";
 import DeckScreen from "./DeckScreen.jsx";
-import StudyScreen, { RoundEnd } from "./StudyScreen.jsx";
+import StudyScreen, { RoundEnd, DailyDoneScreen } from "./StudyScreen.jsx";
 import { OnboardingModal } from "./modals.jsx";
+
+/* ── helpers ── */
+function buildDailyPool(words) {
+  // Slova splatná dnes nebo overdue
+  const t = Date.now();
+  return words.filter(w => !w.vmNextReview || w.vmNextReview <= t);
+}
 
 export default function LexiCard() {
   /* ── core state ── */
@@ -23,6 +30,9 @@ export default function LexiCard() {
   const [loaded, setLoaded]           = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [gameStats, setGameStats]     = useState({ xp: 0, dailyStreak: 0, lastStudyDate: null });
+
+  /* ── folder study ── */
+  const [studyFolderId, setStudyFolderId] = useState(null); // null = single deck, string = folder id
 
   /* ── study state ── */
   const [mode, setMode]               = useState("transl");
@@ -48,6 +58,12 @@ export default function LexiCard() {
   const [wrongCountdown, setWrongCountdown] = useState(0);
   const [dictEntry, setDictEntry]     = useState(null);
   const [roundEndData, setRoundEndData] = useState(null);
+
+  /* ── daily pool state ── */
+  // dailyPool: Set of word IDs that are in today's pool
+  // dailyPoolDone: true when pool exhausted (trigger daily done screen)
+  const [dailyPool, setDailyPool]     = useState(null); // null = not tracking
+  const [dailyPoolDone, setDailyPoolDone] = useState(false);
 
   const recRef      = useRef(null);
   const streamRef   = useRef(null);
@@ -188,8 +204,8 @@ export default function LexiCard() {
   }
 
   /* ── session persistence ── */
-  function saveSession(words, idx, stats, combo, deckId, mode, translDir, flipDir) {
-    try { localStorage.setItem("lc6_session", JSON.stringify({ deckId, rWords: words.map(w => w.id), rIdx: idx, rStats: stats, combo, mode, translDir, flipDir, savedAt: Date.now() })); } catch {}
+  function saveSession(words, idx, stats, combo, deckId, mode, translDir, flipDir, folderId) {
+    try { localStorage.setItem("lc6_session", JSON.stringify({ deckId, folderId: folderId ?? null, rWords: words.map(w => w.id), rIdx: idx, rStats: stats, combo, mode, translDir, flipDir, savedAt: Date.now() })); } catch {}
   }
   function clearSession()  { try { localStorage.removeItem("lc6_session"); } catch {} }
   function restoreSession(decksSnap) {
@@ -203,57 +219,173 @@ export default function LexiCard() {
       const wm = new Map(d.words.map(w => [w.id, w]));
       const rWords = (s.rWords || []).map(id => wm.get(id)).filter(Boolean);
       if (!rWords.length) return null;
-      return { rWords, rIdx: s.rIdx || 0, rStats: s.rStats || { ok: 0, bad: 0, xp: 0 }, combo: s.combo || 0, deckId: s.deckId, mode: s.mode || "transl", translDir: s.translDir || "en-cs", flipDir: s.flipDir || "en-cs" };
+      return { rWords, rIdx: s.rIdx || 0, rStats: s.rStats || { ok: 0, bad: 0, xp: 0 }, combo: s.combo || 0, deckId: s.deckId, folderId: s.folderId ?? null, mode: s.mode || "transl", translDir: s.translDir || "en-cs", flipDir: s.flipDir || "en-cs" };
     } catch { return null; }
   }
 
   /* ── study helpers ── */
   function clearCard() { clearTimeout(timerRef.current); clearInterval(intervalRef.current); setFB(null); setTx(""); setMicErr(""); setTyped(""); setPronAtt(0); setWrongCountdown(0); setEvalLoading(false); setFlipped(false); setFlipFlash(null); }
 
+  /* ── get words for folder study ── */
+  function getFolderWords(folderId, decksSnap) {
+    const ds = decksSnap || decks;
+    return ds.filter(d => d.folderId === folderId).flatMap(d => d.words);
+  }
+
+  /* ── start study: single deck ── */
   function startStudy() {
     if (!deck?.words?.length) return;
+    setStudyFolderId(null);
+    const poolWords = buildDailyPool(deck.words);
     const words = pickRound(deck.words);
+    const poolIds = new Set(poolWords.map(w => w.id));
+    setDailyPool(poolIds);
+    setDailyPoolDone(false);
     setRWords(words); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
-    saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir);
+    saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, null);
+    setScreen("study");
+  }
+
+  /* ── start study: whole folder ── */
+  function startFolderStudy(folderId) {
+    const allWords = getFolderWords(folderId);
+    if (!allWords.length) return;
+    setStudyFolderId(folderId);
+    const poolWords = buildDailyPool(allWords);
+    const poolIds = new Set(poolWords.map(w => w.id));
+    setDailyPool(poolIds);
+    setDailyPoolDone(false);
+    const words = pickRound(allWords);
+    // Use first deck in folder as "active" for session purposes
+    const firstDeck = decks.find(d => d.folderId === folderId);
+    const did = firstDeck?.id ?? deckId;
+    setDeckId(did);
+    setRWords(words); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
+    saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, did, mode, translDir, flipDir, folderId);
     setScreen("study");
   }
 
   function resumeStudy(decksSnap) {
     const s = restoreSession(decksSnap || decks);
     if (!s) return;
-    setDeckId(s.deckId); setRWords(s.rWords); setRIdx(s.rIdx); setRStats(s.rStats); setCombo(s.combo);
+    setDeckId(s.deckId);
+    setStudyFolderId(s.folderId ?? null);
+    setRWords(s.rWords); setRIdx(s.rIdx); setRStats(s.rStats); setCombo(s.combo);
     setMode(s.mode); setTranslDir(s.translDir); setFlipDir(s.flipDir);
+    setDailyPool(null); setDailyPoolDone(false);
     clearCard(); setScreen("study");
+  }
+
+  /* ── update word stats across decks (handles folder study) ── */
+  function updateWordInDecks(wid, vmUpd, ok) {
+    setDecks(ds => ds.map(d => {
+      const hasWord = d.words.some(w => w.id === wid);
+      if (!hasWord) return d;
+      return {
+        ...d,
+        words: d.words.map(dw => dw.id !== wid ? dw : {
+          ...dw, ...vmUpd,
+          score: ok ? (dw.score ?? 0) + 1 : Math.max(0, (dw.score ?? 0) - 1),
+          wStats: { total: (dw.wStats?.total ?? 0) + 1, correct: (dw.wStats?.correct ?? 0) + (ok ? 1 : 0), wrong: (dw.wStats?.wrong ?? 0) + (ok ? 0 : 1) }
+        }),
+        deckStats: { totalAnswers: (d.deckStats?.totalAnswers ?? 0) + 1, correctAnswers: (d.deckStats?.correctAnswers ?? 0) + (ok ? 1 : 0), roundsCompleted: d.deckStats?.roundsCompleted ?? 0 },
+      };
+    }));
+  }
+
+  /* ── check if daily pool exhausted ── */
+  // Returns true if the NEXT card (after current) would exhaust the daily pool
+  // We track via the rWords list filtered by dailyPool
+  function isDailyPoolExhausted(nextIdx, wordsArr, pool) {
+    if (!pool) return false;
+    // Count remaining pool words from nextIdx onward
+    const remaining = wordsArr.slice(nextIdx).filter(w => pool.has(w.id));
+    return remaining.length === 0;
   }
 
   function nextCard() {
     clearTimeout(timerRef.current); clearInterval(intervalRef.current);
     setFB(null); setTx(""); setMicErr(""); setTyped(""); setPronAtt(0); setWrongCountdown(0); setEvalLoading(false); setFlipped(false); setFlipFlash(null);
     const nxt = rIdx + 1;
+
+    // Check if daily pool just finished (current card was last pool card)
+    if (dailyPool && !dailyPoolDone) {
+      const remainingPool = rWords.slice(nxt).filter(w => dailyPool.has(w.id));
+      if (remainingPool.length === 0) {
+        // Daily pool done! Before showing dailyDone, finalize round stats
+        finishRound(false); // false = don't go to roundEnd
+        setDailyPoolDone(true);
+        setScreen("dailyDone");
+        return;
+      }
+    }
+
     if (nxt >= rWords.length) {
-      setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, deckStats: { totalAnswers: (d.deckStats?.totalAnswers ?? 0) + rStats.ok + rStats.bad, correctAnswers: (d.deckStats?.correctAnswers ?? 0) + rStats.ok, roundsCompleted: (d.deckStats?.roundsCompleted ?? 0) + 1 } }));
-      const roundBonus = 50;
-      const totalXp = rStats.xp + roundBonus;
-      setGameStats(prev => {
-        const updated = checkStreak(prev);
-        const oldLvl = getLevel(updated.xp ?? 0).level;
-        const newXp = (updated.xp ?? 0) + totalXp;
-        const newLvl = getLevel(newXp).level;
-        const result = { ...updated, xp: newXp };
-        setRoundEndData({ xpEarned: totalXp, newLevel: newLvl > oldLvl ? newLvl : null, streak: result.dailyStreak });
-        return result;
-      });
-      clearSession(); setScreen("roundEnd");
+      finishRound(true);
     } else {
       setRIdx(nxt);
-      saveSession(rWords, nxt, rStats, combo, deckId, mode, translDir, flipDir);
+      saveSession(rWords, nxt, rStats, combo, deckId, mode, translDir, flipDir, studyFolderId);
     }
   }
 
+  function finishRound(goToRoundEnd) {
+    setDecks(ds => ds.map(d => {
+      if (studyFolderId ? d.folderId !== studyFolderId : d.id !== deckId) return d;
+      return { ...d, deckStats: { totalAnswers: (d.deckStats?.totalAnswers ?? 0) + rStats.ok + rStats.bad, correctAnswers: (d.deckStats?.correctAnswers ?? 0) + rStats.ok, roundsCompleted: (d.deckStats?.roundsCompleted ?? 0) + 1 } };
+    }));
+    const roundBonus = 50;
+    const totalXp = rStats.xp + roundBonus;
+    setGameStats(prev => {
+      const updated = checkStreak(prev);
+      const oldLvl = getLevel(updated.xp ?? 0).level;
+      const newXp = (updated.xp ?? 0) + totalXp;
+      const newLvl = getLevel(newXp).level;
+      const result = { ...updated, xp: newXp };
+      setRoundEndData({ xpEarned: totalXp, newLevel: newLvl > oldLvl ? newLvl : null, streak: result.dailyStreak });
+      return result;
+    });
+    clearSession();
+    if (goToRoundEnd) setScreen("roundEnd");
+  }
+
   function nextRound() {
-    const words = pickRound(deck.words);
+    let allWords;
+    if (studyFolderId) {
+      allWords = getFolderWords(studyFolderId);
+    } else {
+      allWords = deck?.words ?? [];
+    }
+    const poolWords = buildDailyPool(allWords);
+    const poolIds = new Set(poolWords.map(w => w.id));
+    setDailyPool(poolIds);
+    setDailyPoolDone(false);
+    const words = pickRound(allWords);
     setRWords(words); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
-    saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir);
+    saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
+    setScreen("study");
+  }
+
+  /* ── continue after daily done (show remaining non-pool words) ── */
+  function continueAfterDailyDone() {
+    // Build new round with words NOT in pool (upcoming cards)
+    let allWords;
+    if (studyFolderId) {
+      allWords = getFolderWords(studyFolderId);
+    } else {
+      allWords = deck?.words ?? [];
+    }
+    // Words that are due in future (not in today's pool)
+    const futureWords = allWords.filter(w => w.vmNextReview && w.vmNextReview > Date.now());
+    if (!futureWords.length) {
+      // Nothing left, go back to deck/home
+      setScreen(studyFolderId ? "home" : "deck");
+      return;
+    }
+    setDailyPool(null); // No pool tracking for continuation
+    setDailyPoolDone(false);
+    const words = pickRound(futureWords);
+    setRWords(words); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
+    saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
     setScreen("study");
   }
 
@@ -287,13 +419,21 @@ export default function LexiCard() {
     const newCombo = quality >= 5 ? combo + 1 : 0;
     setCombo(newCombo);
     const vmUpd = vmUpdate(w, quality);
-    setDecks(ds => ds.map(d => d.id !== deckId ? d : {
-      ...d,
-      words: d.words.map(dw => dw.id !== w.id ? dw : { ...dw, ...vmUpd, score: quality >= 3 ? (dw.score ?? 0) + 1 : Math.max(0, (dw.score ?? 0) - 1), wStats: { total: (dw.wStats?.total ?? 0) + 1, correct: (dw.wStats?.correct ?? 0) + (ok ? 1 : 0), wrong: (dw.wStats?.wrong ?? 0) + (ok ? 0 : 1) } }),
-      deckStats: { totalAnswers: (d.deckStats?.totalAnswers ?? 0) + 1, correctAnswers: (d.deckStats?.correctAnswers ?? 0) + (ok ? 1 : 0), roundsCompleted: d.deckStats?.roundsCompleted ?? 0 },
-    }));
+    updateWordInDecks(w.id, vmUpd, ok);
     setRStats(s => ({ ...s, ok: s.ok + (ok ? 1 : 0), bad: s.bad + (ok ? 0 : 1), xp: s.xp + xpGain }));
     setFlipFlash(quality === 0 ? "bad" : quality === 3 ? "warn" : "ok");
+
+    // Daily pool: špatně (q=0) nebo tuším (q=3) → vrátit do poolu
+    if (dailyPool && (quality === 0 || quality === 3)) {
+      setDailyPool(prev => {
+        const next = new Set(prev);
+        next.add(w.id);
+        return next;
+      });
+      // Append word back to rWords queue
+      setRWords(ws => [...ws, w]);
+    }
+
     setTimeout(() => { setFlipFlash(null); setFlipped(false); nextCard(); }, 420);
   }
 
@@ -325,15 +465,29 @@ export default function LexiCard() {
     const vmUpd = vmUpdate(w, quality);
     setFB({ ok, answer: translDir === "en-cs" ? w.cs : w.en, given, forced, quality });
     setRStats(s => ({ ...s, ok: s.ok + (ok ? 1 : 0), bad: s.bad + (ok ? 0 : 1), xp: s.xp + xpGain }));
-    setDecks(ds => ds.map(d => d.id !== deckId ? d : {
-      ...d,
-      words: d.words.map(dw => dw.id !== w.id ? dw : { ...dw, ...vmUpd, score: ok ? (dw.score ?? 0) + 1 : Math.max(0, (dw.score ?? 0) - 1), wStats: { total: (dw.wStats?.total ?? 0) + 1, correct: (dw.wStats?.correct ?? 0) + (ok ? 1 : 0), wrong: (dw.wStats?.wrong ?? 0) + (ok ? 0 : 1) } }),
-      deckStats: { totalAnswers: (d.deckStats?.totalAnswers ?? 0) + 1, correctAnswers: (d.deckStats?.correctAnswers ?? 0) + (ok ? 1 : 0), roundsCompleted: d.deckStats?.roundsCompleted ?? 0 },
-    }));
+    updateWordInDecks(w.id, vmUpd, ok);
+
+    // Daily pool: špatně nebo tuším (quality < 5, !ok — zde quality 0) → vrátit do poolu
+    // Pro transl/pron: ok = quality>=3, ale "tuším" neexistuje — jen ok nebo špatně
+    // Pravidlo: špatně → vrátit do poolu
+    if (dailyPool && !ok) {
+      setDailyPool(prev => {
+        const next = new Set(prev);
+        next.add(w.id);
+        return next;
+      });
+      setRWords(ws => [...ws, w]);
+    }
   }
 
   function submitTyped()  { if (typed.trim()) evalAnswer(typed.trim()); }
-  function dontKnow()     { const w = rWords[rIdx]; if (!w || feedback) return; const ans = translDir === "en-cs" ? w.cs : w.en; const lang = translDir === "en-cs" ? "cs-CZ" : "en-US"; commitAnswer(w, 0, ""); speakWord(ans, lang); }
+  function dontKnow()     {
+    const w = rWords[rIdx]; if (!w || feedback) return;
+    const ans = translDir === "en-cs" ? w.cs : w.en;
+    const lang = translDir === "en-cs" ? "cs-CZ" : "en-US";
+    commitAnswer(w, 0, "");
+    speakWord(ans, lang);
+  }
 
   /* ── loading spinner ── */
   if (!loaded) return (
@@ -359,6 +513,7 @@ export default function LexiCard() {
         onSelect={id => { setDeckId(id); setScreen("deck"); }}
         onFileUpload={loadFile} onSampleDeck={loadSampleDeck}
         onAddFolder={addFolder} onRenameFolder={renameFolder} onDeleteFolder={deleteFolder} onMoveDeck={moveDeck}
+        onFolderStudy={startFolderStudy}
       />
     </>
   );
@@ -379,9 +534,19 @@ export default function LexiCard() {
 
   if (screen === "roundEnd") return (
     <RoundEnd
-      stats={rStats} total={rWords.length} deckName={deck?.name ?? ""}
+      stats={rStats} total={rWords.length}
+      deckName={studyFolderId ? (folders.find(f => f.id === studyFolderId)?.name ?? "Složka") : (deck?.name ?? "")}
       xpEarned={roundEndData?.xpEarned ?? 0} newLevel={roundEndData?.newLevel}
-      streak={roundEndData?.streak} onNext={nextRound} onBack={() => setScreen("deck")}
+      streak={roundEndData?.streak} onNext={nextRound} onBack={() => setScreen(studyFolderId ? "home" : "deck")}
+    />
+  );
+
+  if (screen === "dailyDone") return (
+    <DailyDoneScreen
+      stats={rStats}
+      deckName={studyFolderId ? (folders.find(f => f.id === studyFolderId)?.name ?? "Složka") : (deck?.name ?? "")}
+      onEnd={() => setScreen(studyFolderId ? "home" : "deck")}
+      onContinue={continueAfterDailyDone}
     />
   );
 
@@ -396,6 +561,8 @@ export default function LexiCard() {
       pronAtt={pronAtt} evalLoading={evalLoading}
       wrongCountdown={wrongCountdown} dictEntry={dictEntry}
       mode={mode} translDir={translDir} flipDir={flipDir}
+      studyFolderId={studyFolderId}
+      folderName={studyFolderId ? (folders.find(f => f.id === studyFolderId)?.name ?? "Složka") : null}
       onSetMode={m => { setMode(m); clearCard(); }}
       onSetTranslDir={v => { setTranslDir(v); clearCard(); }}
       onSetFlipDir={v => { setFlipDir(v); clearCard(); }}
@@ -415,7 +582,7 @@ export default function LexiCard() {
       onSubmitTyped={submitTyped}
       onDontKnow={dontKnow}
       onNextCard={nextCard}
-      onBack={() => setScreen("deck")}
+      onBack={() => setScreen(studyFolderId ? "home" : "deck")}
       onSpeak={speakWord}
     />
   );
