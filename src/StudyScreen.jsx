@@ -196,11 +196,11 @@ export default function StudyScreen({
   deck, langs,
   rWords, rIdx, rStats, combo,
   feedback, flipFlash, flipped, listenOn,
-  tx, micSt, micErr, iMode, typed, autoPlay,
+  tx, micSt, micErr, iMode, typed, autoPlay, playSounds,
   pronAtt, evalLoading, wrongCountdown, dictEntry,
   mode, translDir, flipDir,
   onSetMode, onSetTranslDir, onSetFlipDir,
-  onSetIMode, onSetTyped, onSetAutoPlay,
+  onSetIMode, onSetTyped, onSetAutoPlay, onSetPlaySounds,
   onFlip, onFlipAnswer, onStartListen, onStopListen,
   onSubmitTyped, onDontKnow, onNextCard, onBack,
   onSpeak,
@@ -246,7 +246,7 @@ export default function StudyScreen({
             ...(total > 0 ? [{ bg: "#1a2038", c: "#7090c8", t: `${pct}%` }] : []),
           ].map(({ bg, c, t }, i) => <span key={i} style={{ background: bg, color: c, padding: "2px 7px", borderRadius: 20, fontSize: 11, fontWeight: 500 }}>{t}</span>)}
         </div>
-        <SettingsDropdown autoPlay={autoPlay} onToggle={onSetAutoPlay} />
+        <SettingsDropdown autoPlay={autoPlay} onToggle={onSetAutoPlay} playSounds={playSounds} onToggleSounds={onSetPlaySounds} />
       </div>
 
       {/* mode tabs */}

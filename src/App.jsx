@@ -42,6 +42,7 @@ export default function LexiCard() {
   const [iMode, setIMode]             = useState("mic");
   const [typed, setTyped]             = useState("");
   const [autoPlay, setAutoPlay]       = useState(true);
+  const [playSounds, setPlaySounds]   = useState(() => { try { const v = localStorage.getItem("lc6_playSounds"); return v === null ? true : v === "true"; } catch { return true; } });
   const [pronAtt, setPronAtt]         = useState(0);
   const [evalLoading, setEvalLoading] = useState(false);
   const [wrongCountdown, setWrongCountdown] = useState(0);
@@ -75,6 +76,7 @@ export default function LexiCard() {
   useEffect(() => {
     if (loaded) {
       try { localStorage.setItem("lc6_data", JSON.stringify({ decks, lang: activeLang, langs: langs.filter(l => l.custom), gameStats, folders })); } catch {}
+      try { localStorage.setItem("lc6_playSounds", String(playSounds)); } catch {}
     }
   }, [decks, activeLang, langs, loaded, gameStats, folders]);
 
@@ -91,7 +93,7 @@ export default function LexiCard() {
   /* ── auto-advance on feedback ── */
   useEffect(() => {
     if (!feedback || screen !== "study" || mode === "flip") return;
-    playSound(feedback.ok ? "ok" : "bad");
+    if (playSounds) playSound(feedback.ok ? "ok" : "bad");
     if (feedback.ok) {
       timerRef.current = setTimeout(() => nextCard(), 900);
     } else {
@@ -281,7 +283,7 @@ export default function LexiCard() {
     const w = rWords[rIdx]; if (!w) return;
     const ok = quality >= 3;
     const xpGain = ok ? 1 : 0;
-    playSound(ok ? "ok" : "bad");
+    if (playSounds) playSound(ok ? "ok" : "bad");
     const newCombo = quality >= 5 ? combo + 1 : 0;
     setCombo(newCombo);
     const vmUpd = vmUpdate(w, quality);
@@ -390,7 +392,7 @@ export default function LexiCard() {
       rWords={rWords} rIdx={rIdx} rStats={rStats} combo={combo}
       feedback={feedback} flipFlash={flipFlash} flipped={flipped}
       listenOn={listenOn} tx={tx} micSt={micSt} micErr={micErr}
-      iMode={iMode} typed={typed} autoPlay={autoPlay}
+      iMode={iMode} typed={typed} autoPlay={autoPlay} playSounds={playSounds}
       pronAtt={pronAtt} evalLoading={evalLoading}
       wrongCountdown={wrongCountdown} dictEntry={dictEntry}
       mode={mode} translDir={translDir} flipDir={flipDir}
@@ -400,6 +402,7 @@ export default function LexiCard() {
       onSetIMode={m => { setIMode(m); setMicErr(""); setTx(""); }}
       onSetTyped={setTyped}
       onSetAutoPlay={setAutoPlay}
+      onSetPlaySounds={v => { setPlaySounds(v); try { localStorage.setItem("lc6_playSounds", String(v)); } catch {} }}
       onFlip={() => {
         setFlipped(true);
         if (flipDir === "cs-en" && autoPlay) {
