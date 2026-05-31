@@ -34,9 +34,9 @@ export default function HomeScreen({
       <div style={{ position: "relative" }}>
         <div onClick={() => onSelect(d.id)} className="btn"
           style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: "1.2rem", cursor: "pointer", transition: "border-color .2s", textAlign: "left", width: "100%" }}
-          onMouseEnter={e => e.currentTarget.style.borderColor = "#3a5080"}
+          onMouseEnter={e => e.currentTarget.style.borderColor = "var(--lc-selBorder)"}
           onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-          {due > 0 && <div style={{ position: "absolute", top: 10, right: 34, background: "#3a1a08", border: "1px solid #8a4020", borderRadius: 20, padding: "2px 7px", fontSize: 10, color: "#d08050", fontWeight: 600 }}>{due} dnes</div>}
+          {due > 0 && <div style={{ position: "absolute", top: 10, right: 34, background: "var(--lc-dueBg)", border: "1px solid var(--lc-dueBorder)", borderRadius: 20, padding: "2px 7px", fontSize: 10, color: "var(--lc-dueText)", fontWeight: 600 }}>{due} dnes</div>}
           <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4, lineHeight: 1.2, paddingRight: 42 }}>{d.name}</div>
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>{d.words.length} slov · {mastered} zvl.{sr !== null ? ` · ${sr}%` : ""}</div>
           <div style={{ background: "#161e30", borderRadius: 3, height: 3 }}><div style={{ width: `${pct}%`, height: "100%", background: C.gold, borderRadius: 3 }} /></div>
@@ -79,12 +79,12 @@ export default function HomeScreen({
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.muted, marginBottom: 4 }}>
             <span>{gameStats.xp ?? 0} XP</span><span>{lvl.next} XP</span>
           </div>
-          <div style={{ background: "#1a2030", borderRadius: 4, height: 6 }}>
+          <div style={{ background: "var(--lc-xpTrack)", borderRadius: 4, height: 6 }}>
             <div style={{ width: `${lvl.pct}%`, height: "100%", background: "linear-gradient(90deg,#d4a853,#f0c060)", borderRadius: 4, transition: "width .5s" }} />
           </div>
         </div>
         {streak > 0 && (
-          <div style={{ flexShrink: 0, background: "#1a1608", border: "1px solid #3a3010", borderRadius: 10, padding: "6px 12px", textAlign: "center" }}>
+          <div style={{ flexShrink: 0, background: "var(--lc-streakBg)", border: "1px solid var(--lc-streakBorder)", borderRadius: 10, padding: "6px 12px", textAlign: "center" }}>
             <div style={{ fontSize: 16 }}>🔥</div>
             <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700, color: C.gold }}>{streak}</div>
             <div style={{ fontSize: 9, color: C.muted }}>dní</div>
@@ -95,17 +95,17 @@ export default function HomeScreen({
       {/* actions row */}
       <div style={{ width: "100%", maxWidth: 780, display: "flex", gap: 8, marginBottom: "0.9rem" }}>
         <button className="btn" onClick={() => setShowUpload(true)}
-          style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, background: "#0e1520", border: `1.5px dashed #2a3650`, borderRadius: 14, padding: "11px 14px", cursor: "pointer", transition: "all .2s", textAlign: "left" }}
+          style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, background: "var(--lc-btnAddBg)", border: `1.5px dashed var(--lc-btnAddBorder)`, borderRadius: 14, padding: "11px 14px", cursor: "pointer", transition: "all .2s", textAlign: "left" }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = "rgba(212,168,83,.04)"; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = "#2a3650"; e.currentTarget.style.background = "#0e1520"; }}>
-          <div style={{ width: 30, height: 30, background: "#1a2535", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>📊</div>
+          onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--lc-btnAddBorder)"; e.currentTarget.style.background = "var(--lc-btnAddBg)"; }}>
+          <div style={{ width: 30, height: 30, background: "var(--lc-cardAlt)", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>📊</div>
           <div style={{ fontSize: 13, color: C.gold, fontFamily: "'Playfair Display',serif", fontWeight: 700 }}>Přidat balíček</div>
-          <div style={{ marginLeft: "auto", fontSize: 18, color: "#2a3650" }}>+</div>
+          <div style={{ marginLeft: "auto", fontSize: 18, color: "var(--lc-btnAddBorder)" }}>+</div>
         </button>
         <button className="btn" onClick={() => setShowAddFolder(true)}
-          style={{ display: "flex", alignItems: "center", gap: 8, background: "#0e1520", border: `1px solid #2a3650`, borderRadius: 14, padding: "11px 14px", cursor: "pointer", transition: "all .2s", whiteSpace: "nowrap" }}
+          style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--lc-btnAddBg)", border: `1px solid #2a3650`, borderRadius: 14, padding: "11px 14px", cursor: "pointer", transition: "all .2s", whiteSpace: "nowrap" }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = "rgba(212,168,83,.04)"; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = "#2a3650"; e.currentTarget.style.background = "#0e1520"; }}>
+          onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--lc-btnAddBorder)"; e.currentTarget.style.background = "var(--lc-btnAddBg)"; }}>
           <span style={{ fontSize: 18 }}>📁</span>
           <span style={{ fontSize: 13, color: C.textDim }}>Nová složka</span>
         </button>
@@ -116,7 +116,7 @@ export default function HomeScreen({
         <span style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 2, flexShrink: 0 }}>Řadit:</span>
         {DECK_SORTS.map(s => (
           <button key={s.id} className="btn" onClick={() => setSort(s.id)}
-            style={{ background: sort === s.id ? "#1a2a40" : "transparent", border: `1px solid ${sort === s.id ? "#2e4565" : C.border}`, color: sort === s.id ? C.gold : C.muted, borderRadius: 8, padding: "4px 11px", fontSize: 11, cursor: "pointer" }}>
+            style={{ background: sort === s.id ? "var(--lc-selBg)" : "transparent", border: `1px solid ${sort === s.id ? "var(--lc-selBorder)" : C.border}`, color: sort === s.id ? C.gold : C.muted, borderRadius: 8, padding: "4px 11px", fontSize: 11, cursor: "pointer" }}>
             {s.label}
           </button>
         ))}
@@ -128,7 +128,7 @@ export default function HomeScreen({
           <div style={{ textAlign: "center", padding: "3rem 0", color: C.muted, fontSize: 14, fontStyle: "italic" }}>
             Žádné balíčky pro {lc?.label}
             <div style={{ marginTop: 12 }}>
-              <button className="btn" onClick={onSampleDeck} style={{ background: "#1a2535", border: `1px solid #2a3650`, color: "#7090b8", borderRadius: 10, padding: "9px 18px", fontSize: 13, cursor: "pointer" }}>🎓 Načíst ukázkový balíček</button>
+              <button className="btn" onClick={onSampleDeck} style={{ background: "var(--lc-cardAlt)", border: `1px solid #2a3650`, color: "var(--lc-muted)", borderRadius: 10, padding: "9px 18px", fontSize: 13, cursor: "pointer" }}>🎓 Načíst ukázkový balíček</button>
             </div>
           </div>
         ) : (
@@ -137,7 +137,7 @@ export default function HomeScreen({
               const fDecks = decksInFolder(f.id);
               const isOpen = openFolders[f.id] !== false;
               return (
-                <div key={f.id} style={{ background: "#0e1420", border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
+                <div key={f.id} style={{ background: "var(--lc-folderBg)", border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", userSelect: "none" }}
                     onClick={() => setOpenFolders(o => ({ ...o, [f.id]: !isOpen }))}>
                     <span style={{ fontSize: 16 }}>{isOpen ? "📂" : "📁"}</span>

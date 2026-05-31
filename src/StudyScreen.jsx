@@ -13,7 +13,7 @@ export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, all
 
   const ZONES = [
     { q: 0, label: "Neznám", emoji: "😕", color: C.err,      bg: C.errBg,  border: C.errBorder },
-    { q: 3, label: "Tuším",  emoji: "🤔", color: "#c8a050",  bg: "#1a1608", border: "#4a4010" },
+    { q: 3, label: "Tuším",  emoji: "🤔", color: "var(--lc-goldDim)",  bg: "var(--lc-streakBg)", border: "var(--lc-streakBorder)" },
     { q: 5, label: "Vím! ✓", emoji: "😊", color: C.ok,       bg: C.okBg,   border: C.okBorder },
   ];
 
@@ -67,7 +67,7 @@ export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, all
             const isHov = hovered === z.q, isDrag = drag.active && Math.abs(drag.dy) > 30;
             return (
               <div key={z.q} style={{
-                background: isHov ? "#1a2035" : "transparent",
+                background: isHov ? "var(--lc-zoneHover)" : "transparent",
                 border: `1.5px dashed ${isHov ? "#4a5878" : isDrag ? "#252e42" : C.border}`,
                 borderRadius: 12, padding: "8px 4px", textAlign: "center",
                 transition: "all .15s", transform: isHov ? "scale(1.06)" : "scale(1)",
@@ -84,9 +84,9 @@ export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, all
         <div className="fade-up" style={{ width: "100%", display: "flex", gap: 6 }}>
           {ZONES.map(({ q, label }) => (
             <button key={q} className="btn" onClick={() => onAnswer(q)}
-              style={{ flex: 1, background: "#131c2e", border: `1px solid #2a3448`, color: "#8a96a8", borderRadius: 10, padding: "9px 4px", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'Lora',serif", transition: "all .18s" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#1a2540"; e.currentTarget.style.borderColor = "#3a4a60"; e.currentTarget.style.color = "#c0cad8"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "#131c2e"; e.currentTarget.style.borderColor = "#2a3448"; e.currentTarget.style.color = "#8a96a8"; }}>
+              style={{ flex: 1, background: "var(--lc-ansBtn)", border: `1px solid var(--lc-ansBtnBorder)`, color: "var(--lc-ansBtnColor)", borderRadius: 10, padding: "9px 4px", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'Lora',serif", transition: "all .18s" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--lc-ansBtnHover)"; e.currentTarget.style.borderColor = "var(--lc-ansBtnHoverBorder)"; e.currentTarget.style.color = "var(--lc-ansBtnHoverColor)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--lc-ansBtn)"; e.currentTarget.style.borderColor = "var(--lc-ansBtnBorder)"; e.currentTarget.style.color = "var(--lc-ansBtnColor)"; }}>
               {label}
             </button>
           ))}
@@ -117,11 +117,11 @@ export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, all
               <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 42, fontWeight: 700, color: C.text, lineHeight: 1.15 }}>{frontWord}</div>
               {dir === "en-cs" && (
                 <button className="btn" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); onSpeak(); }}
-                  style={{ border: `1px solid #2e3447`, color: "#6a7888", borderRadius: "50%", width: 34, height: 34, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🔊</button>
+                  style={{ border: `1px solid var(--lc-inputBorder)`, color: "var(--lc-muted)", borderRadius: "50%", width: 34, height: 34, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🔊</button>
               )}
             </div>
             {dir === "en-cs" && dictEntry?.ipa && <div style={{ fontSize: 15, color: C.muted, fontStyle: "italic", marginBottom: 6 }}>{dictEntry.ipa}</div>}
-            <div style={{ fontSize: 13, color: "#2a3545", marginTop: 8 }}>👆 Klikni pro překlad</div>
+            <div style={{ fontSize: 13, color: "var(--lc-mutedDark)", marginTop: 8 }}>👆 Klikni pro překlad</div>
           </>
         ) : (
           <>
@@ -130,12 +130,12 @@ export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, all
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: allSyn || w.example ? 14 : 0 }}>
               <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 38, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>{backWord}</div>
               <button className="btn" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); onSpeakBack(); }}
-                style={{ border: `1px solid #2e3447`, color: "#6a7888", borderRadius: "50%", width: 34, height: 34, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🔊</button>
+                style={{ border: `1px solid var(--lc-inputBorder)`, color: "var(--lc-muted)", borderRadius: "50%", width: 34, height: 34, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🔊</button>
             </div>
             {dir === "cs-en" && dictEntry?.ipa && <div style={{ fontSize: 14, color: C.muted, fontStyle: "italic", marginBottom: allSyn || w.example ? 10 : 0 }}>{dictEntry.ipa}</div>}
-            {allSyn && <div style={{ fontSize: 13, color: "#5a6a50", marginBottom: w.example ? 12 : 0 }}>také: {allSyn}</div>}
+            {allSyn && <div style={{ fontSize: 13, color: "var(--lc-muted)", marginBottom: w.example ? 12 : 0 }}>také: {allSyn}</div>}
             {w.example && (
-              <div style={{ fontSize: 16, color: "#3a4a50", fontStyle: "italic", borderTop: `1px solid ${C.border}`, paddingTop: 14, marginTop: 2, lineHeight: 1.65, maxWidth: "90%" }}>
+              <div style={{ fontSize: 16, color: "var(--lc-textDim)", fontStyle: "italic", borderTop: `1px solid ${C.border}`, paddingTop: 14, marginTop: 2, lineHeight: 1.65, maxWidth: "90%" }}>
                 💡 „{w.example}"
               </div>
             )}
@@ -166,12 +166,12 @@ export function RoundEnd({ stats, total, deckName, xpEarned, newLevel, streak, o
         <div style={{ fontSize: 52, marginBottom: 10 }}>{em}</div>
         <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 700, color: C.gold, marginBottom: 4 }}>Kolo dokončeno!</div>
         <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, fontStyle: "italic" }}>{deckName}</div>
-        {newLevel && <div style={{ background: "#1a1608", border: `1px solid ${C.gold}`, borderRadius: 12, padding: "10px 16px", marginBottom: 14, fontSize: 14, color: C.gold, fontWeight: 600 }}>🎉 Level up! Jsi teď Level {newLevel}</div>}
+        {newLevel && <div style={{ background: "var(--lc-streakBg)", border: `1px solid ${C.gold}`, borderRadius: 12, padding: "10px 16px", marginBottom: 14, fontSize: 14, color: C.gold, fontWeight: 600 }}>🎉 Level up! Jsi teď Level {newLevel}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 9, marginBottom: 16 }}>
           {[
             { lbl: "Správně",    val: stats.ok,   bg: C.okBg,   c: C.ok },
             { lbl: "Špatně",     val: stats.bad,  bg: C.errBg,  c: C.err },
-            { lbl: "Úspěšnost",  val: `${pct}%`,  bg: "#1a2038", c: "#7090c8" },
+            { lbl: "Úspěšnost",  val: `${pct}%`,  bg: "var(--lc-statBg1)", c: "#7090c8" },
           ].map(({ lbl, val, bg, c }) => (
             <div key={lbl} style={{ background: bg, borderRadius: 11, padding: "0.9rem 0.3rem" }}>
               <div style={{ fontSize: 10, color: c, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5 }}>{lbl}</div>
@@ -179,7 +179,7 @@ export function RoundEnd({ stats, total, deckName, xpEarned, newLevel, streak, o
             </div>
           ))}
         </div>
-        {xpEarned > 0 && <div style={{ background: "#1a1608", border: "1px solid #3a3010", borderRadius: 10, padding: "8px", marginBottom: 14, fontSize: 14, color: C.gold }}>+{xpEarned} XP získáno{streak >= 3 ? ` · 🔥 ${streak} dní v řadě` : ""}</div>}
+        {xpEarned > 0 && <div style={{ background: "var(--lc-streakBg)", border: "1px solid #3a3010", borderRadius: 10, padding: "8px", marginBottom: 14, fontSize: 14, color: C.gold }}>+{xpEarned} XP získáno{streak >= 3 ? ` · 🔥 ${streak} dní v řadě` : ""}</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           <button className="btn" onClick={onNext} style={{ background: C.gold, border: "none", color: C.bg, borderRadius: 11, padding: "13px", fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: "'Playfair Display',serif" }}>Další kolo →</button>
           <button className="btn" onClick={onBack} style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.muted, borderRadius: 11, padding: "11px", fontSize: 14, cursor: "pointer" }}>Zpět na slovíčka</button>
@@ -199,7 +199,7 @@ export function DailyDoneScreen({ stats, deckName, onEnd, onContinue }) {
     x: Math.random() * 100,
     delay: Math.random() * 2.5,
     dur: 2 + Math.random() * 2,
-    color: ["#c8a050", "#5cb88a", "#7090c8", "#e06060", "#c8d050", "#a050c8"][Math.floor(Math.random() * 6)],
+    color: ["var(--lc-goldDim)", "#5cb88a", "#7090c8", "#e06060", "#c8d050", "#a050c8"][Math.floor(Math.random() * 6)],
     size: 6 + Math.random() * 8,
     drift: (Math.random() - 0.5) * 120,
   })));
@@ -244,7 +244,7 @@ export function DailyDoneScreen({ stats, deckName, onEnd, onContinue }) {
           {[
             { lbl: "Správně",   val: stats.ok,  bg: C.okBg,   c: C.ok },
             { lbl: "Špatně",    val: stats.bad, bg: C.errBg,  c: C.err },
-            { lbl: "Úspěšnost", val: `${pct}%`, bg: "#1a2038", c: "#7090c8" },
+            { lbl: "Úspěšnost", val: `${pct}%`, bg: "var(--lc-statBg1)", c: "#7090c8" },
           ].map(({ lbl, val, bg, c }) => (
             <div key={lbl} style={{ background: bg, borderRadius: 11, padding: "0.9rem 0.3rem" }}>
               <div style={{ fontSize: 10, color: c, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5 }}>{lbl}</div>
@@ -314,7 +314,7 @@ export default function StudyScreen({
         <button className="btn" onClick={onBack} style={{ color: C.muted, fontSize: 12, flexShrink: 0 }}>← {folderName ? `📁 ${folderName}` : deck?.name}</button>
         <div style={{ flex: 1, maxWidth: 130 }}>
           <div style={{ fontSize: 10, color: C.muted, textAlign: "center", marginBottom: 3 }}>Kolo {rIdx + 1}/{rWords.length}</div>
-          <div style={{ background: "#1a2030", borderRadius: 3, height: 3 }}>
+          <div style={{ background: "var(--lc-xpTrack)", borderRadius: 3, height: 3 }}>
             <div style={{ width: `${((rIdx + 1) / rWords.length) * 100}%`, height: "100%", background: C.gold, borderRadius: 3, transition: "width .3s" }} />
           </div>
         </div>
@@ -323,7 +323,7 @@ export default function StudyScreen({
           {[
             { bg: C.okBg,   c: C.ok,       t: `✓${rStats.ok}` },
             { bg: C.errBg,  c: C.err,      t: `✗${rStats.bad}` },
-            ...(total > 0 ? [{ bg: "#1a2038", c: "#7090c8", t: `${pct}%` }] : []),
+            ...(total > 0 ? [{ bg: "var(--lc-statBg1)", c: "#7090c8", t: `${pct}%` }] : []),
           ].map(({ bg, c, t }, i) => <span key={i} style={{ background: bg, color: c, padding: "2px 7px", borderRadius: 20, fontSize: 11, fontWeight: 500 }}>{t}</span>)}
         </div>
         <SettingsDropdown autoPlay={autoPlay} onToggle={onSetAutoPlay} playSounds={playSounds} onToggleSounds={onSetPlaySounds} />
@@ -382,13 +382,13 @@ export default function StudyScreen({
             style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: "1.2rem 1.5rem", textAlign: "center" }}>
             {isPron ? (
               <>
-                <div style={{ fontSize: 10, color: "#3e6850", textTransform: "uppercase", letterSpacing: 3, marginBottom: 8 }}>🔊 Výslovnost</div>
+                <div style={{ fontSize: 10, color: "var(--lc-ok)", textTransform: "uppercase", letterSpacing: 3, marginBottom: 8 }}>🔊 Výslovnost</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 5 }}>
                   <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 30, fontWeight: 700, color: C.text }}>{w.en}</div>
-                  <button className="btn" onClick={() => onSpeak(w.en, "en-US")} style={{ border: `1px solid #2a5030`, color: "#6acf90", borderRadius: "50%", width: 30, height: 30, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🔊</button>
+                  <button className="btn" onClick={() => onSpeak(w.en, "en-US")} style={{ border: `1px solid var(--lc-okBorder)`, color: "var(--lc-ok)", borderRadius: "50%", width: 30, height: 30, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🔊</button>
                 </div>
                 {dictEntry?.ipa && <div style={{ fontSize: 13, color: C.muted, fontStyle: "italic", marginBottom: 4 }}>{dictEntry.ipa}</div>}
-                {w.cs && <div style={{ fontSize: 13, color: "#4a6050", fontStyle: "italic" }}>{parseSyn(w.cs)[0]}</div>}
+                {w.cs && <div style={{ fontSize: 13, color: "var(--lc-muted)", fontStyle: "italic" }}>{parseSyn(w.cs)[0]}</div>}
                 {pronAtt > 0 && !feedback && <div style={{ fontSize: 12, color: pronAtt >= 2 ? C.err : "#c89040", marginTop: 5 }}>{pronAtt === 1 ? "Pokus 2/3" : "Poslední pokus 3/3"}</div>}
               </>
             ) : (
@@ -398,11 +398,11 @@ export default function StudyScreen({
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 5 }}>
                   <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>{question}</div>
-                  <button className="btn" onClick={() => onSpeak(question, qLang)} style={{ border: `1px solid #2e3447`, color: "#6a7888", borderRadius: "50%", width: 28, height: 28, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>🔊</button>
+                  <button className="btn" onClick={() => onSpeak(question, qLang)} style={{ border: `1px solid var(--lc-inputBorder)`, color: "var(--lc-muted)", borderRadius: "50%", width: 28, height: 28, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>🔊</button>
                 </div>
                 {effDir === "en-cs" && dictEntry?.ipa && <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", marginBottom: 4 }}>{dictEntry.ipa}</div>}
                 {effDir === "en-cs" && w.example && !feedback && (
-                  <div style={{ fontSize: 14, color: "#3a4a50", fontStyle: "italic", borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 4, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 14, color: "var(--lc-textDim)", fontStyle: "italic", borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 4, lineHeight: 1.5 }}>
                     💡 „{w.example}"
                   </div>
                 )}
@@ -432,12 +432,12 @@ export default function StudyScreen({
             <div className="fade-up" style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 9 }}>
               {(iMode === "mic" || isPron) && (<>
                 {micErr && (
-                  <div style={{ width: "100%", background: "#200e0e", border: `1px solid #5a2020`, borderRadius: 9, padding: "8px 12px", fontSize: 12, color: "#e08080", lineHeight: 1.5 }}>
+                  <div style={{ width: "100%", background: "var(--lc-errBg)", border: `1px solid var(--lc-errBorder)`, borderRadius: 9, padding: "8px 12px", fontSize: 12, color: "var(--lc-err)", lineHeight: 1.5 }}>
                     ⚠️ {micErr}
                     {!isPron && <button className="btn" onClick={() => onSetIMode("text")} style={{ marginLeft: 8, background: C.gold, color: C.bg, borderRadius: 5, padding: "2px 7px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Psát</button>}
                   </div>
                 )}
-                {micSt === "requesting" && <div style={{ color: "#8a9060", fontSize: 12 }}>Žádám o přístup k mikrofonu…</div>}
+                {micSt === "requesting" && <div style={{ color: "var(--lc-muted)", fontSize: 12 }}>Žádám o přístup k mikrofonu…</div>}
                 <div style={{ color: C.muted, fontSize: 12, minHeight: 20, textAlign: "center", display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
                   {listenOn
                     ? (<><span style={{ display: "flex", alignItems: "flex-end", height: 16 }}>{[1, 2, 3, 4, 5].map(i => <span key={i} className="wv" style={{ height: 5 }} />)}</span>{tx ? `„${tx}"` : isPron ? "Řekni slovo anglicky…" : `Říkejte ${effDir === "en-cs" ? "česky" : "anglicky"}…`}</>)
@@ -456,7 +456,7 @@ export default function StudyScreen({
                     onKeyDown={e => e.key === "Enter" && onSubmitTyped()}
                     placeholder={effDir === "en-cs" ? "česky…" : "anglicky…"} autoFocus />
                   <button className="btn" onClick={onSubmitTyped}
-                    style={{ background: typed.trim() ? C.gold : "#1a2030", color: typed.trim() ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "11px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "'Playfair Display',serif", transition: "all .2s" }}>
+                    style={{ background: typed.trim() ? C.gold : "var(--lc-xpTrack)", color: typed.trim() ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "11px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "'Playfair Display',serif", transition: "all .2s" }}>
                     Zkontrolovat →
                   </button>
                 </div>
@@ -464,9 +464,9 @@ export default function StudyScreen({
 
               {!isPron && (
                 <button className="btn" onClick={onDontKnow}
-                  style={{ border: `1.5px solid #3d3020`, background: "#1a1508", color: "#c8a050", borderRadius: 9, padding: "8px 22px", fontSize: 13, cursor: "pointer", fontWeight: 500, transition: "all .2s" }}
+                  style={{ border: `1.5px solid var(--lc-streakBorder)`, background: "var(--lc-streakBg)", color: "var(--lc-goldDim)", borderRadius: 9, padding: "8px 22px", fontSize: 13, cursor: "pointer", fontWeight: 500, transition: "all .2s" }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = "#3d3020"; e.currentTarget.style.color = "#c8a050"; }}>
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--lc-streakBorder)"; e.currentTarget.style.color = "var(--lc-goldDim)"; }}>
                   Nevím — ukázat &amp; přečíst 🔈
                 </button>
               )}
@@ -481,16 +481,16 @@ export default function StudyScreen({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 13, fontWeight: 700, color: feedback.ok ? C.ok : C.err, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
                     {feedback.ok ? (isPron ? "Výborná výslovnost!" : "Správně!") : (feedback.forced ? "3× špatně" : (isPron ? "Zkus příště" : "Špatně"))}
-                    {feedback.ok && <span style={{ fontSize: 10, color: "#5a7060", marginLeft: "auto" }}>→ za chvíli…</span>}
+                    {feedback.ok && <span style={{ fontSize: 10, color: "var(--lc-muted)", marginLeft: "auto" }}>→ za chvíli…</span>}
                   </div>
                   <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 19, fontWeight: 700, color: C.text }}>{parseSyn(feedback.answer)[0] || feedback.answer}</div>
-                  {allSyn && <div style={{ fontSize: 11, color: "#5a6a50", marginTop: 2 }}>✓ také: {allSyn}</div>}
+                  {allSyn && <div style={{ fontSize: 11, color: "var(--lc-muted)", marginTop: 2 }}>✓ také: {allSyn}</div>}
                   {dictEntry?.ipa && <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", marginTop: 2 }}>{dictEntry.ipa}</div>}
-                  {effDir === "en-cs" && w.example && <div style={{ fontSize: 14, color: "#3a4a50", fontStyle: "italic", marginTop: 6, lineHeight: 1.5 }}>💡 „{w.example}"</div>}
-                  {!feedback.ok && feedback.given && <div style={{ fontSize: 11, color: "#4a4030", marginTop: 4, fontStyle: "italic" }}>Vaše odpověď: „{feedback.given}"</div>}
+                  {effDir === "en-cs" && w.example && <div style={{ fontSize: 14, color: "var(--lc-textDim)", fontStyle: "italic", marginTop: 6, lineHeight: 1.5 }}>💡 „{w.example}"</div>}
+                  {!feedback.ok && feedback.given && <div style={{ fontSize: 11, color: "var(--lc-mutedDark)", marginTop: 4, fontStyle: "italic" }}>Vaše odpověď: „{feedback.given}"</div>}
                 </div>
                 <button className="btn" onClick={() => onSpeak(parseSyn(feedback.answer)[0] || feedback.answer, aLang)}
-                  style={{ border: `1px solid #2e3447`, color: "#6a7888", borderRadius: "50%", width: 32, height: 32, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🔊</button>
+                  style={{ border: `1px solid var(--lc-inputBorder)`, color: "var(--lc-muted)", borderRadius: "50%", width: 32, height: 32, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🔊</button>
               </div>
               {!feedback.ok && (
                 <button className="btn" onClick={onNextCard}

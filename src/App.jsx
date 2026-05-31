@@ -20,6 +20,23 @@ function buildDailyPool(words) {
 }
 
 export default function LexiCard() {
+  /* ── light mode ── */
+  const [lightMode, setLightMode] = useState(() => localStorage.getItem("lc_lightMode") === "1");
+
+  function toggleLight() {
+    setLightMode(v => {
+      const next = !v;
+      localStorage.setItem("lc_lightMode", next ? "1" : "0");
+      document.documentElement.setAttribute("data-theme", next ? "light" : "dark");
+      return next;
+    });
+  }
+
+  /* apply theme on mount */
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", lightMode ? "light" : "dark");
+  }, []); // eslint-disable-line
+
   /* ── core state ── */
   const [decks, setDecks]             = useState([]);
   const [langs, setLangs]             = useState(DEFAULT_LANGS);
@@ -491,8 +508,8 @@ export default function LexiCard() {
 
   /* ── loading spinner ── */
   if (!loaded) return (
-    <div style={{ minHeight: "100dvh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ width: 32, height: 32, border: "3px solid #2e3447", borderTopColor: C.gold, borderRadius: "50%", animation: "spin .8s linear infinite" }} />
+    <div style={{ minHeight: "100dvh", background: "var(--lc-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: 32, height: 32, border: "3px solid var(--lc-inputBorder)", borderTopColor: "var(--lc-gold)", borderRadius: "50%", animation: "spin .8s linear infinite" }} />
       <style>{STYLE}</style>
     </div>
   );
@@ -528,6 +545,7 @@ export default function LexiCard() {
         onBack={() => setScreen("home")} onStart={startStudy} onResume={() => resumeStudy(decks)}
         onUpdate={updWord} onAddWord={addWord} onDeleteWord={delWord}
         onDeleteDeck={delDeck} onRename={renameDeck} onResetStats={resetStats} onExport={exportDeck}
+        lightMode={lightMode} onToggleLight={toggleLight}
       />
     );
   }

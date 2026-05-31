@@ -36,7 +36,7 @@ export function ConfirmModal({ title, msg, label = "Smazat", onConfirm, onClose 
 /* ─── iOS-style Toggle ───────────────────────────────────────── */
 export function IOSToggle({ value, onChange }) {
   return (
-    <div onClick={() => onChange(!value)} style={{ width: 46, height: 26, borderRadius: 13, flexShrink: 0, background: value ? "#5cb88a" : "#3e4455", position: "relative", cursor: "pointer", transition: "background .25s" }}>
+    <div onClick={() => onChange(!value)} style={{ width: 46, height: 26, borderRadius: 13, flexShrink: 0, background: value ? "#5cb88a" : "var(--lc-mutedDark)", position: "relative", cursor: "pointer", transition: "background .25s" }}>
       <div style={{ position: "absolute", top: 3, left: value ? 23 : 3, width: 20, height: 20, borderRadius: "50%", background: "white", transition: "left .25s", boxShadow: "0 1px 4px rgba(0,0,0,.4)" }} />
     </div>
   );
@@ -53,9 +53,9 @@ export function SettingsDropdown({ autoPlay, onToggle, playSounds, onToggleSound
   }, []);
   return (
     <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
-      <button className="btn" onClick={() => setOpen(o => !o)} style={{ background: open ? "#1e2a45" : "#1a1f2e", border: `1px solid ${open ? "#3a5080" : "#2e3447"}`, color: open ? C.gold : C.muted, borderRadius: 8, padding: "5px 10px", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>⚙️</button>
+      <button className="btn" onClick={() => setOpen(o => !o)} style={{ background: open ? "var(--lc-selBg)" : "var(--lc-cardAlt)", border: `1px solid ${open ? "var(--lc-selBorder)" : "var(--lc-inputBorder)"}`, color: open ? C.gold : C.muted, borderRadius: 8, padding: "5px 10px", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>⚙️</button>
       {open && (
-        <div style={{ position: "absolute", right: 0, top: "calc(100% + 8px)", background: "#111e30", border: `1px solid #2a3650`, borderRadius: 14, padding: "4px 0", minWidth: 240, zIndex: 50, boxShadow: "0 8px 32px rgba(0,0,0,.6)", overflow: "hidden" }}>
+        <div style={{ position: "absolute", right: 0, top: "calc(100% + 8px)", background: "var(--lc-dropBg)", border: `1px solid var(--lc-modalBorder)`, borderRadius: 14, padding: "4px 0", minWidth: 240, zIndex: 50, boxShadow: "0 8px 32px rgba(0,0,0,.6)", overflow: "hidden" }}>
           <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.border}` }}>
             <div style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 1.5, fontWeight: 600 }}>Nastavení</div>
           </div>
@@ -111,7 +111,7 @@ export function LangModal({ initial, onClose, onSave, title }) {
             <input className="inp-sm" value={f.code} onChange={upd("code")} placeholder="ESP" maxLength={4} />
           </div>
         </div>
-        <div style={{ background: "#0e1520", borderRadius: 10, padding: "10px 12px" }}>
+        <div style={{ background: "var(--lc-cardAlt)", borderRadius: 10, padding: "10px 12px" }}>
           <div style={{ fontSize: 11, color: C.mutedDark, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>Zkratky pro řazení</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
@@ -129,7 +129,7 @@ export function LangModal({ initial, onClose, onSave, title }) {
         <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
           <button className="btn" onClick={onClose} style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>Zrušit</button>
           <button className="btn" onClick={() => { if (valid) onSave({ ...f, label: f.label.trim(), code: (f.code || f.studyCode).toUpperCase().slice(0, 4), nativeCode: f.nativeCode.toUpperCase().trim(), studyCode: f.studyCode.toUpperCase().trim() }); }}
-            style={{ flex: 2, background: valid ? C.gold : "#1a2030", color: valid ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all .2s" }}>
+            style={{ flex: 2, background: valid ? C.gold : "var(--lc-xpTrack)", color: valid ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all .2s" }}>
             Uložit
           </button>
         </div>
@@ -154,18 +154,18 @@ export function LangDropdown({ langs, activeId, onSwitch, onAddLang, onEditLang,
   return (
     <>
       <div ref={ref} style={{ position: "relative", userSelect: "none" }}>
-        <button className="btn" onClick={() => setOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 8, background: "#111e30", border: `1.5px solid ${open ? "#3a5080" : C.border}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", minWidth: 130 }}>
+        <button className="btn" onClick={() => setOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--lc-dropBg)", border: `1.5px solid ${open ? "#3a5080" : C.border}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", minWidth: 130 }}>
           <span style={{ fontSize: 20 }}>{active?.flag}</span>
           <span style={{ fontWeight: 700, fontSize: 12, color: C.gold }}>{active?.code || active?.studyCode}</span>
           <span style={{ fontSize: 12, color: C.muted, flex: 1, textAlign: "left" }}>{active?.label}</span>
           <span style={{ fontSize: 10, color: C.muted }}>{open ? "▲" : "▼"}</span>
         </button>
         {open && (
-          <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "#111e30", border: `1px solid #2a3650`, borderRadius: 12, overflow: "hidden", minWidth: 230, zIndex: 50, boxShadow: "0 8px 32px rgba(0,0,0,.5)" }}>
+          <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "var(--lc-dropBg)", border: `1px solid var(--lc-modalBorder)`, borderRadius: 12, overflow: "hidden", minWidth: 230, zIndex: 50, boxShadow: "0 8px 32px rgba(0,0,0,.5)" }}>
             {langs.map(l => (
-              <div key={l.id} style={{ display: "flex", alignItems: "center", background: l.id === activeId ? "#1a2a45" : "transparent" }}
-                onMouseEnter={e => e.currentTarget.style.background = l.id === activeId ? "#1a2a45" : "#161e30"}
-                onMouseLeave={e => e.currentTarget.style.background = l.id === activeId ? "#1a2a45" : "transparent"}>
+              <div key={l.id} style={{ display: "flex", alignItems: "center", background: l.id === activeId ? "var(--lc-selBg)" : "transparent" }}
+                onMouseEnter={e => e.currentTarget.style.background = l.id === activeId ? "var(--lc-selBg)" : "var(--lc-dropHover)"}
+                onMouseLeave={e => e.currentTarget.style.background = l.id === activeId ? "var(--lc-selBg)" : "transparent"}>
                 <button className="btn" onClick={() => { onSwitch(l.id); setOpen(false); }} style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", textAlign: "left" }}>
                   <span style={{ fontSize: 18 }}>{l.flag}</span>
                   <span style={{ fontWeight: 700, fontSize: 12, color: C.gold, width: 34 }}>{l.code || l.studyCode}</span>
@@ -173,21 +173,21 @@ export function LangDropdown({ langs, activeId, onSwitch, onAddLang, onEditLang,
                   {l.id === activeId && <span style={{ marginLeft: "auto", color: C.ok, fontSize: 12 }}>✓</span>}
                 </button>
                 <button className="btn" onClick={e => { e.stopPropagation(); setEditLang(l); setOpen(false); }}
-                  style={{ padding: "10px 8px", color: "#4a5878", fontSize: 13, flexShrink: 0 }}
+                  style={{ padding: "10px 8px", color: "var(--lc-muted)", fontSize: 13, flexShrink: 0 }}
                   onMouseEnter={e => e.currentTarget.style.color = C.gold}
-                  onMouseLeave={e => e.currentTarget.style.color = "#4a5878"}>✏️</button>
+                  onMouseLeave={e => e.currentTarget.style.color = "var(--lc-muted)"}>✏️</button>
                 {langs.length > 1 && (
                   <button className="btn" onClick={e => { e.stopPropagation(); setShowDel(l); setOpen(false); }}
-                    style={{ padding: "10px 8px", color: "#4a2828", fontSize: 16, flexShrink: 0 }}
-                    onMouseEnter={e => e.currentTarget.style.color = "#c87070"}
-                    onMouseLeave={e => e.currentTarget.style.color = "#4a2828"}>×</button>
+                    style={{ padding: "10px 8px", color: "var(--lc-errBg)", fontSize: 16, flexShrink: 0 }}
+                    onMouseEnter={e => e.currentTarget.style.color = "var(--lc-err)"}
+                    onMouseLeave={e => e.currentTarget.style.color = "var(--lc-errBg)"}>×</button>
                 )}
               </div>
             ))}
             <div style={{ borderTop: `1px solid ${C.border}`, margin: "4px 0" }} />
             <button className="btn" onClick={() => { setShowAdd(true); setOpen(false); }}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", color: "#7090b8", textAlign: "left", fontSize: 13 }}
-              onMouseEnter={e => e.currentTarget.style.background = "#161e30"}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", color: "var(--lc-muted)", textAlign: "left", fontSize: 13 }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--lc-dropHover)"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
               <span style={{ fontSize: 18 }}>＋</span> Přidat jazyk
             </button>
@@ -216,26 +216,26 @@ export function UploadModal({ onClose, onUpload }) {
         onDragLeave={() => setDrag(false)}
         onDrop={e => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) { onUpload(f); onClose(); } }}
         onClick={() => fRef.current.click()}
-        style={{ border: `2px dashed ${drag ? C.gold : "#2e3447"}`, borderRadius: 14, padding: "2rem 1.5rem", textAlign: "center", background: drag ? "rgba(212,168,83,.05)" : "transparent", cursor: "pointer", transition: "all .2s", marginBottom: 16 }}>
+        style={{ border: `2px dashed ${drag ? C.gold : "var(--lc-inputBorder)"}`, borderRadius: 14, padding: "2rem 1.5rem", textAlign: "center", background: drag ? "rgba(212,168,83,.05)" : "transparent", cursor: "pointer", transition: "all .2s", marginBottom: 16 }}>
         <div style={{ fontSize: 36, marginBottom: 8 }}>📊</div>
         <div style={{ fontSize: 16, color: C.gold, fontFamily: "'Playfair Display',serif", fontWeight: 700, marginBottom: 4 }}>Přetáhni soubor sem</div>
         <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>nebo klikni pro výběr</div>
-        <div style={{ display: "inline-block", background: "#1a2030", borderRadius: 20, padding: "3px 12px", fontSize: 12, color: "#4a6070" }}>.xlsx · .xls · .csv</div>
+        <div style={{ display: "inline-block", background: "var(--lc-xpTrack)", borderRadius: 20, padding: "3px 12px", fontSize: 12, color: "var(--lc-muted)" }}>.xlsx · .xls · .csv</div>
         <input ref={fRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) { onUpload(e.target.files[0]); onClose(); } }} />
       </div>
-      <div style={{ background: "#0e1520", borderRadius: 10, padding: "10px 14px" }}>
+      <div style={{ background: "var(--lc-cardAlt)", borderRadius: 10, padding: "10px 14px" }}>
         <div style={{ fontSize: 10, color: C.mutedDark, marginBottom: 6, letterSpacing: 1, textTransform: "uppercase" }}>Formát</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "3px 10px", fontSize: 12, fontFamily: "monospace" }}>
-          <span style={{ color: "#5c8aaa", fontWeight: 600 }}>A – EN</span>
-          <span style={{ color: "#7a8a5c", fontWeight: 600 }}>B – CS</span>
-          <span style={{ color: "#9a7a5c", fontWeight: 600 }}>C – Příklad</span>
-          <span style={{ color: "#7a6a8a", fontWeight: 600 }}>D – Synonyma</span>
+          <span style={{ color: "var(--lc-gold)", fontWeight: 600 }}>A – EN</span>
+          <span style={{ color: "var(--lc-ok)", fontWeight: 600 }}>B – CS</span>
+          <span style={{ color: "var(--lc-goldDim)", fontWeight: 600 }}>C – Příklad</span>
+          <span style={{ color: "var(--lc-muted)", fontWeight: 600 }}>D – Synonyma</span>
           <span style={{ color: C.muted }}>contestant</span>
           <span style={{ color: C.muted }}>soutěžící</span>
-          <span style={{ color: "#5a5a5a", fontStyle: "italic" }}>She wins.</span>
-          <span style={{ color: "#7a6a5c" }}>závodník</span>
+          <span style={{ color: "var(--lc-muted)", fontStyle: "italic" }}>She wins.</span>
+          <span style={{ color: "var(--lc-textDim)" }}>závodník</span>
         </div>
-        <div style={{ marginTop: 7, fontSize: 11, color: "#5a6a5c" }}>Synonyma lze i v B: <span style={{ fontFamily: "monospace", color: "#8a8" }}>soutěžící / závodník</span></div>
+        <div style={{ marginTop: 7, fontSize: 11, color: "var(--lc-muted)" }}>Synonyma lze i v B: <span style={{ fontFamily: "monospace", color: "#8a8" }}>soutěžící / závodník</span></div>
       </div>
     </Modal>
   );
@@ -275,7 +275,7 @@ export function AddWordModal({ onClose, onAdd }) {
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
           <button className="btn" onClick={onClose} style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>Zrušit</button>
-          <button className="btn" onClick={submit} style={{ flex: 2, background: f.en && f.cs ? C.gold : "#1a2030", color: f.en && f.cs ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all .2s" }}>Přidat</button>
+          <button className="btn" onClick={submit} style={{ flex: 2, background: f.en && f.cs ? C.gold : "var(--lc-xpTrack)", color: f.en && f.cs ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all .2s" }}>Přidat</button>
         </div>
       </div>
     </Modal>
@@ -294,7 +294,7 @@ export function RenameModal({ currentName, onClose, onRename }) {
         <input className="inp-sm" value={name} onChange={e => setName(e.target.value)} autoFocus onKeyDown={e => e.key === "Enter" && name.trim() && onRename(name.trim())} />
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn" onClick={onClose} style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>Zrušit</button>
-          <button className="btn" onClick={() => name.trim() && onRename(name.trim())} style={{ flex: 2, background: name.trim() ? C.gold : "#1a2030", color: name.trim() ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Uložit</button>
+          <button className="btn" onClick={() => name.trim() && onRename(name.trim())} style={{ flex: 2, background: name.trim() ? C.gold : "var(--lc-xpTrack)", color: name.trim() ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Uložit</button>
         </div>
       </div>
     </Modal>
@@ -315,13 +315,13 @@ export function StatsModal({ deck, onClose, onReset }) {
           <div style={{ fontSize: 12, color: C.muted }}>{deck.words.length} slovíček · {mastered} zvládnuto · {ds.roundsCompleted} kol</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-          <button className="btn" onClick={onReset} style={{ border: "1px solid #3a1515", color: "#7a4040", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>🔄 Reset</button>
+          <button className="btn" onClick={onReset} style={{ border: "1px solid var(--lc-errBorder)", color: "var(--lc-err)", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>🔄 Reset</button>
           <button className="btn" onClick={onClose} style={{ color: C.muted, fontSize: 22, lineHeight: 1 }}>×</button>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 7, marginBottom: 14 }}>
         {[
-          { lbl: "Celkem", val: ds.totalAnswers || 0, c: "#7090c8", bg: "#121a2e" },
+          { lbl: "Celkem", val: ds.totalAnswers || 0, c: "#7090c8", bg: "var(--lc-statBg1)" },
           { lbl: "Správně", val: ds.correctAnswers || 0, c: C.ok, bg: C.okBg },
           { lbl: "Špatně", val: (ds.totalAnswers || 0) - (ds.correctAnswers || 0), c: C.err, bg: C.errBg },
           { lbl: "Úspěšnost", val: ds.totalAnswers ? `${Math.round(ds.correctAnswers / ds.totalAnswers * 100)}%` : "—", c: C.gold, bg: "#1a1608" },
@@ -360,12 +360,12 @@ export function StatsModal({ deck, onClose, onReset }) {
               const vmBox = vmGetBox(w);
               return (
                 <tr key={w.id} style={{ borderBottom: `1px solid #161e2e` }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#0e1525"}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--lc-cardAlt)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "7px 8px", color: C.muted, textAlign: "center", fontSize: 10 }}>{i + 1}</td>
                   <td style={{ padding: "7px 8px", color: C.text, fontWeight: 500 }}>{w.en}</td>
                   <td style={{ padding: "7px 8px", color: C.textDim }}>{parseSyn(w.cs)[0] || w.cs}</td>
-                  <td style={{ padding: "7px 8px", color: "#6a7060", fontSize: 11, fontStyle: "italic" }}>{syns || "—"}</td>
+                  <td style={{ padding: "7px 8px", color: "var(--lc-muted)", fontSize: 11, fontStyle: "italic" }}>{syns || "—"}</td>
                   <td style={{ padding: "7px 8px", color: C.textDim, textAlign: "center" }}>{ws.total || "—"}</td>
                   <td style={{ padding: "7px 8px", color: C.ok, textAlign: "center" }}>{ws.correct || "—"}</td>
                   <td style={{ padding: "7px 8px", color: C.err, textAlign: "center" }}>{ws.wrong || "—"}</td>
@@ -421,7 +421,7 @@ export function FolderModal({ initial, onClose, onSave, title }) {
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn" onClick={onClose} style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>Zrušit</button>
           <button className="btn" onClick={() => name.trim() && onSave(name.trim())}
-            style={{ flex: 2, background: name.trim() ? C.gold : "#1a2030", color: name.trim() ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all .2s" }}>
+            style={{ flex: 2, background: name.trim() ? C.gold : "var(--lc-xpTrack)", color: name.trim() ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all .2s" }}>
             Uložit
           </button>
         </div>
@@ -441,14 +441,14 @@ export function MoveFolderModal({ deck, folders, currentFolderId, onClose, onMov
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
         <div onClick={() => setSelected(null)}
-          style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: selected === null ? "#1a2a45" : "transparent", border: `1px solid ${selected === null ? "#3a5080" : C.border}`, borderRadius: 10, cursor: "pointer", transition: "all .15s" }}>
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: selected === null ? "var(--lc-selBg)" : "transparent", border: `1px solid ${selected === null ? "#3a5080" : C.border}`, borderRadius: 10, cursor: "pointer", transition: "all .15s" }}>
           <span style={{ fontSize: 18 }}>📋</span>
           <span style={{ fontSize: 13, color: selected === null ? C.gold : C.textDim }}>Bez složky (hlavní stránka)</span>
           {selected === null && <span style={{ marginLeft: "auto", color: C.ok, fontSize: 12 }}>✓</span>}
         </div>
         {folders.map(f => (
           <div key={f.id} onClick={() => setSelected(f.id)}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: selected === f.id ? "#1a2a45" : "transparent", border: `1px solid ${selected === f.id ? "#3a5080" : C.border}`, borderRadius: 10, cursor: "pointer", transition: "all .15s" }}>
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: selected === f.id ? "var(--lc-selBg)" : "transparent", border: `1px solid ${selected === f.id ? "#3a5080" : C.border}`, borderRadius: 10, cursor: "pointer", transition: "all .15s" }}>
             <span style={{ fontSize: 18 }}>📁</span>
             <span style={{ fontSize: 13, color: selected === f.id ? C.gold : C.textDim }}>{f.name}</span>
             {selected === f.id && <span style={{ marginLeft: "auto", color: C.ok, fontSize: 12 }}>✓</span>}
