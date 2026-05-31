@@ -156,9 +156,14 @@ export default function DeckScreen({
             <input className="tdinp col-ex" value={w.example || ""} placeholder="příkladová věta…" onChange={e => onUpdate(w.id, "example", e.target.value)} />
             <input className="tdinp col-syn" value={w.synonyms || ""} placeholder="synonyma…" onChange={e => onUpdate(w.id, "synonyms", e.target.value)} />
             <button className="btn" onClick={() => onDeleteWord(w.id)}
-              style={{ color: "#3a2020", fontSize: 17, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px", height: "100%", borderRadius: "0 8px 8px 0" }}
-              onMouseEnter={e => e.currentTarget.style.color = "#c87070"}
-              onMouseLeave={e => e.currentTarget.style.color = "#3a2020"}>×</button>
+              style={{
+                background: "#5a1a1a", color: "#ff8080", fontSize: 15, fontWeight: "bold",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                padding: "0 12px", height: "100%", borderRadius: "0 8px 8px 0",
+                minWidth: 36, cursor: "pointer", flexShrink: 0,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#8b2020"; e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#5a1a1a"; e.currentTarget.style.color = "#ff8080"; }}>✕</button>
           </div>
         ))}
         <button className="btn" onClick={() => setShowAdd(true)}

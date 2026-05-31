@@ -70,7 +70,8 @@ export const dueCount = vmDueCount;
 export function getLevel(xp) {
   let lv = 0;
   while (lv < LVL_XP.length - 1 && xp >= LVL_XP[lv + 1]) lv++;
-  const curr = LVL_XP[lv], next = LVL_XP[lv + 1] ?? LVL_XP[lv] * 2;
+  const curr = LVL_XP[lv];
+  const next = LVL_XP[lv + 1] ?? Math.round(LVL_XP[lv] * 1.5);
   return {
     level: lv + 1,
     name: LVL_NAMES[lv] ?? "Legenda",
@@ -80,12 +81,11 @@ export function getLevel(xp) {
   };
 }
 
-export function calcXP(quality, combo, isFlip = false) {
-  if (quality < 3) return 0;
-  if (isFlip) return 1;
-  const base = quality === 5 ? 10 : 5;
-  const mult = quality < 5 ? 1 : combo >= 10 ? 3 : combo >= 5 ? 2 : combo >= 3 ? 1.5 : 1;
-  return Math.round(base * mult);
+export function calcXP(quality, combo = 0, isFlip = false) {
+  if (isFlip) return 0;
+  if (quality >= 5) return 10;
+  if (quality === 3) return 5;
+  return 0;
 }
 
 export function comboInfo(n) {
