@@ -265,12 +265,16 @@ export function sortDecks(decks, key) {
   if (!decks) return [];
   const arr = [...decks];
   switch (key) {
-    case "alpha":   return arr.sort((a, b) => a.name.localeCompare(b.name));
-    case "due":     return arr.sort((a, b) => dueCount(b.words) - dueCount(a.words));
-    case "newest":  return arr.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-    case "oldest":  return arr.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
-    case "size":    return arr.sort((a, b) => (b.words?.length ?? 0) - (a.words?.length ?? 0));
-    default:        return arr;
+    case "date-desc":
+    case "newest":   return arr.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+    case "date-asc":
+    case "oldest":   return arr.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+    case "name-asc":
+    case "alpha":    return arr.sort((a, b) => a.name.localeCompare(b.name, "cs"));
+    case "name-desc": return arr.sort((a, b) => b.name.localeCompare(a.name, "cs"));
+    case "due":      return arr.sort((a, b) => dueCount(b.words) - dueCount(a.words));
+    case "size":     return arr.sort((a, b) => (b.words?.length ?? 0) - (a.words?.length ?? 0));
+    default:         return arr;
   }
 }
 
@@ -279,13 +283,21 @@ export function sortWords(words, key) {
   if (!words) return [];
   const arr = [...words];
   switch (key) {
-    case "alpha":   return arr.sort((a, b) => a.en.localeCompare(b.en));
-    case "due":     return arr.sort((a, b) => (a.vmNextReview ?? 0) - (b.vmNextReview ?? 0));
-    case "score":   return arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-    case "newest":  return arr.sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
-    case "oldest":  return arr.sort((a, b) => (a.addedAt ?? 0) - (b.addedAt ?? 0));
-    case "wrong":   return arr.sort((a, b) => (b.wStats?.wrong ?? 0) - (a.wStats?.wrong ?? 0));
-    default:        return arr;
+    case "date-asc":
+    case "oldest":   return arr.sort((a, b) => (a.addedAt ?? 0) - (b.addedAt ?? 0));
+    case "date-desc":
+    case "newest":   return arr.sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
+    case "en-asc":
+    case "alpha":    return arr.sort((a, b) => (a.en ?? "").localeCompare(b.en ?? "", "cs"));
+    case "en-desc":  return arr.sort((a, b) => (b.en ?? "").localeCompare(a.en ?? "", "cs"));
+    case "cs-asc":   return arr.sort((a, b) => (a.cs ?? "").localeCompare(b.cs ?? "", "cs"));
+    case "cs-desc":  return arr.sort((a, b) => (b.cs ?? "").localeCompare(a.cs ?? "", "cs"));
+    case "due":      return arr.sort((a, b) => (a.vmNextReview ?? 0) - (b.vmNextReview ?? 0));
+    case "score":
+    case "score-desc": return arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    case "wrong":
+    case "wrong-desc": return arr.sort((a, b) => (b.wStats?.wrong ?? 0) - (a.wStats?.wrong ?? 0));
+    default:         return arr;
   }
 }
 
@@ -294,16 +306,28 @@ export function sortStats(words, key) {
   if (!words) return [];
   const arr = [...words];
   switch (key) {
-    case "alpha":   return arr.sort((a, b) => a.en.localeCompare(b.en));
-    case "score":   return arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-    case "wrong":   return arr.sort((a, b) => (b.wStats?.wrong ?? 0) - (a.wStats?.wrong ?? 0));
-    case "success": return arr.sort((a, b) => {
+    case "en-asc":
+    case "alpha":      return arr.sort((a, b) => (a.en ?? "").localeCompare(b.en ?? "", "cs"));
+    case "score-desc":
+    case "score":      return arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    case "wrong-desc":
+    case "wrong":      return arr.sort((a, b) => (b.wStats?.wrong ?? 0) - (a.wStats?.wrong ?? 0));
+    case "correct-desc": return arr.sort((a, b) => (b.wStats?.correct ?? 0) - (a.wStats?.correct ?? 0));
+    case "total-desc": return arr.sort((a, b) => (b.wStats?.total ?? 0) - (a.wStats?.total ?? 0));
+    case "total-asc":  return arr.sort((a, b) => (a.wStats?.total ?? 0) - (b.wStats?.total ?? 0));
+    case "pct-desc":
+    case "success":    return arr.sort((a, b) => {
       const pa = a.wStats?.total ? a.wStats.correct / a.wStats.total : 0;
       const pb = b.wStats?.total ? b.wStats.correct / b.wStats.total : 0;
       return pb - pa;
     });
-    case "box":     return arr.sort((a, b) => (b.vmBox ?? 1) - (a.vmBox ?? 1));
-    case "due":     return arr.sort((a, b) => (a.vmNextReview ?? 0) - (b.vmNextReview ?? 0));
-    default:        return arr;
+    case "pct-asc":    return arr.sort((a, b) => {
+      const pa = a.wStats?.total ? a.wStats.correct / a.wStats.total : 0;
+      const pb = b.wStats?.total ? b.wStats.correct / b.wStats.total : 0;
+      return pa - pb;
+    });
+    case "box":        return arr.sort((a, b) => (b.vmBox ?? 1) - (a.vmBox ?? 1));
+    case "due":        return arr.sort((a, b) => (a.vmNextReview ?? 0) - (b.vmNextReview ?? 0));
+    default:           return arr;
   }
 }
