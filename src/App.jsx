@@ -77,9 +77,11 @@ export default function LexiCard() {
   const [roundEndData, setRoundEndData] = useState(null);
 
   /* ── daily pool state ── */
-  // dailyPool: Set of word IDs that are in today's pool
-  // dailyPoolDone: true when pool exhausted (trigger daily done screen)
-  const [dailyPool, setDailyPool]     = useState(null); // null = not tracking
+  // poolUnseen:   IDs slov která ještě nebyla v žádném kole tohoto sezení
+  // poolReturned: IDs slov která se vrátila (špatně/tuším) — do dalšího kola
+  // dailyPoolDone: true = všechna dnešní slova naučena → daily done screen
+  const [poolUnseen, setPoolUnseen]     = useState(null); // null = bez pool trackingu
+  const [poolReturned, setPoolReturned] = useState(new Set());
   const [dailyPoolDone, setDailyPoolDone] = useState(false);
 
   const recRef      = useRef(null);
@@ -254,12 +256,15 @@ export default function LexiCard() {
     if (!deck?.words?.length) return;
     setStudyFolderId(null);
     const poolWords = buildDailyPool(deck.words);
-    const words = pickRound(deck.words);
-    const poolIds = new Set(poolWords.map(w => w.id));
-    setDailyPool(poolIds);
+    const roundWords = pickRound(poolWords.length ? poolWords : deck.words);
+    const unseenIds = new Set(poolWords.map(w => w.id));
+    // Odeber z unseen slova která jdou do tohoto kola
+    roundWords.forEach(w => unseenIds.delete(w.id));
+    setPoolUnseen(unseenIds);
+    setPoolReturned(new Set());
     setDailyPoolDone(false);
-    setRWords(words); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
-    saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, null);
+    setRWords(roundWords); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
+    saveSession(roundWords, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, null);
     setScreen("study");
   }
 
@@ -269,16 +274,18 @@ export default function LexiCard() {
     if (!allWords.length) return;
     setStudyFolderId(folderId);
     const poolWords = buildDailyPool(allWords);
-    const poolIds = new Set(poolWords.map(w => w.id));
-    setDailyPool(poolIds);
+    const roundWords = pickRound(poolWords.length ? poolWords : allWords);
+    const unseenIds = new Set(poolWords.map(w => w.id));
+    roundWords.forEach(w => unseenIds.delete(w.id));
+    setPoolUnseen(unseenIds);
+    setPoolReturned(new Set());
     setDailyPoolDone(false);
-    const words = pickRound(allWords);
     // Use first deck in folder as "active" for session purposes
     const firstDeck = decks.find(d => d.folderId === folderId);
     const did = firstDeck?.id ?? deckId;
     setDeckId(did);
-    setRWords(words); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
-    saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, did, mode, translDir, flipDir, folderId);
+    setRWords(roundWords); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
+    saveSession(roundWords, 0, { ok: 0, bad: 0, xp: 0 }, 0, did, mode, translDir, flipDir, folderId);
     setScreen("study");
   }
 
@@ -289,7 +296,7 @@ export default function LexiCard() {
     setStudyFolderId(s.folderId ?? null);
     setRWords(s.rWords); setRIdx(s.rIdx); setRStats(s.rStats); setCombo(s.combo);
     setMode(s.mode); setTranslDir(s.translDir); setFlipDir(s.flipDir);
-    setDailyPool(null); setDailyPoolDone(false);
+    setPoolUnseen(null); setPoolReturned(new Set()); setDailyPoolDone(false);
     clearCard(); setScreen("study");
   }
 
@@ -310,15 +317,6 @@ export default function LexiCard() {
     }));
   }
 
-  /* ── check if daily pool exhausted ── */
-  // Returns true if the NEXT card (after current) would exhaust the daily pool
-  // We track via the rWords list filtered by dailyPool
-  function isDailyPoolExhausted(nextIdx, wordsArr, pool) {
-    if (!pool) return false;
-    // Count remaining pool words from nextIdx onward
-    const remaining = wordsArr.slice(nextIdx).filter(w => pool.has(w.id));
-    return remaining.length === 0;
-  }
 
   function nextCard() {
     clearTimeout(timerRef.current); clearInterval(intervalRef.current);
@@ -326,26 +324,18 @@ export default function LexiCard() {
     const nxt = rIdx + 1;
 
     // Check if daily pool just finished (current card was last pool card)
-    if (dailyPool && !dailyPoolDone) {
-      const remainingPool = rWords.slice(nxt).filter(w => dailyPool.has(w.id));
-      if (remainingPool.length === 0) {
-        // Daily pool done! Before showing dailyDone, finalize round stats
-        finishRound(false); // false = don't go to roundEnd
-        setDailyPoolDone(true);
-        setScreen("dailyDone");
-        return;
-      }
-    }
+    // Pool tracking: kolo skončilo (nxt >= rWords.length)
+    // Logika daily done / next round se řeší v finishRound
 
     if (nxt >= rWords.length) {
-      finishRound(true);
+      finishRound();
     } else {
       setRIdx(nxt);
       saveSession(rWords, nxt, rStats, combo, deckId, mode, translDir, flipDir, studyFolderId);
     }
   }
 
-  function finishRound(goToRoundEnd) {
+  function finishRound() {
     setDecks(ds => ds.map(d => {
       if (studyFolderId ? d.folderId !== studyFolderId : d.id !== deckId) return d;
       return { ...d, deckStats: { totalAnswers: (d.deckStats?.totalAnswers ?? 0) + rStats.ok + rStats.bad, correctAnswers: (d.deckStats?.correctAnswers ?? 0) + rStats.ok, roundsCompleted: (d.deckStats?.roundsCompleted ?? 0) + 1 } };
@@ -362,7 +352,26 @@ export default function LexiCard() {
       return result;
     });
     clearSession();
-    if (goToRoundEnd) setScreen("roundEnd");
+
+    // Po skončení kola: je co pokračovat?
+    setPoolUnseen(prev => {
+      if (prev === null) { setScreen("roundEnd"); return prev; }
+      const nextUnseen = prev; // aktuální stav unseen (po odebrání kola na startu)
+      // poolReturned = slova vrácená za toto kolo (špatně/tuším)
+      setPoolReturned(returned => {
+        const hasUnseen = nextUnseen.size > 0;
+        const hasReturned = returned.size > 0;
+        if (!hasUnseen && !hasReturned) {
+          // Denní pool vyčerpán
+          setDailyPoolDone(true);
+          setScreen("dailyDone");
+        } else {
+          setScreen("roundEnd");
+        }
+        return returned;
+      });
+      return prev;
+    });
   }
 
   function nextRound() {
@@ -372,37 +381,78 @@ export default function LexiCard() {
     } else {
       allWords = deck?.words ?? [];
     }
-    // Rebuild daily pool from current state (words due today, including ones returned to pool)
-    const poolWords = buildDailyPool(allWords);
-    const poolIds = new Set(poolWords.map(w => w.id));
-    setDailyPool(poolIds);
-    setDailyPoolDone(false);
-    // Next round = max 15 words from the remaining daily pool
-    const words = pickRound(poolWords.length ? poolWords : allWords);
-    setRWords(words); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
-    saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
-    setScreen("study");
+    const wordMap = new Map(allWords.map(w => [w.id, w]));
+
+    setPoolUnseen(unseen => {
+      let roundWords;
+      let newUnseen;
+      let newReturned;
+
+      setPoolReturned(returned => {
+        if (unseen !== null) {
+          // Máme tracking: priorita = unseen, pak returned
+          const unseenArr = [...unseen].map(id => wordMap.get(id)).filter(Boolean);
+          const returnedArr = [...returned].map(id => wordMap.get(id)).filter(Boolean);
+
+          if (unseenArr.length > 0) {
+            // Kolo z unseen (max 15)
+            roundWords = pickRound(unseenArr);
+            newUnseen = new Set(unseen);
+            roundWords.forEach(w => newUnseen.delete(w.id));
+            newReturned = new Set(returned); // returned se přenáší dál
+          } else if (returnedArr.length > 0) {
+            // Unseen vyčerpány, jedeme vrácená slova
+            roundWords = pickRound(returnedArr);
+            newUnseen = new Set(); // prázdné
+            newReturned = new Set(returned);
+            roundWords.forEach(w => newReturned.delete(w.id)); // odebereme z returned
+          } else {
+            // Nemělo by nastat (finishRound by šel na dailyDone)
+            roundWords = pickRound(allWords);
+            newUnseen = new Set();
+            newReturned = new Set();
+          }
+        } else {
+          // Bez pool trackingu (pokračování po dailyDone)
+          roundWords = pickRound(allWords);
+          newUnseen = null;
+          newReturned = new Set();
+        }
+
+        setTimeout(() => {
+          setRWords(roundWords);
+          setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
+          saveSession(roundWords, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
+          setScreen("study");
+        }, 0);
+
+        return newReturned;
+      });
+
+      return newUnseen;
+    });
   }
 
   /* ── continue after daily done (show remaining non-pool words) ── */
   function continueAfterDailyDone() {
-    // Build new round with words NOT in pool (upcoming cards)
     let allWords;
     if (studyFolderId) {
       allWords = getFolderWords(studyFolderId);
     } else {
       allWords = deck?.words ?? [];
     }
-    // Words that are due in future (not in today's pool)
-    const futureWords = allWords.filter(w => w.vmNextReview && w.vmNextReview > Date.now());
+    // Slova s nejbližší budoucí expirací (standardní režim po vyčerpání denního poolu)
+    const futureWords = allWords
+      .filter(w => w.vmNextReview && w.vmNextReview > Date.now())
+      .sort((a, b) => a.vmNextReview - b.vmNextReview);
     if (!futureWords.length) {
-      // Nothing left, go back to deck/home
       setScreen(studyFolderId ? "home" : "deck");
       return;
     }
-    setDailyPool(null); // No pool tracking for continuation
+    setPoolUnseen(null); // bez pool trackingu
+    setPoolReturned(new Set());
     setDailyPoolDone(false);
-    const words = pickRound(futureWords);
+    const words = futureWords.slice(0, 15);
     setRWords(words); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
     saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
     setScreen("study");
@@ -442,15 +492,9 @@ export default function LexiCard() {
     setRStats(s => ({ ...s, ok: s.ok + (ok ? 1 : 0), bad: s.bad + (ok ? 0 : 1), xp: s.xp + xpGain }));
     setFlipFlash(quality === 0 ? "bad" : quality === 3 ? "warn" : "ok");
 
-    // Daily pool: špatně (q=0) nebo tuším (q=3) → vrátit do poolu
-    if (dailyPool && (quality === 0 || quality === 3)) {
-      setDailyPool(prev => {
-        const next = new Set(prev);
-        next.add(w.id);
-        return next;
-      });
-      // Append word back to rWords queue
-      setRWords(ws => [...ws, w]);
+    // Pool: špatně (q=0) nebo tuším (q=3) → vrátit do poolReturned (do příštího kola)
+    if (poolUnseen !== null && (quality === 0 || quality === 3)) {
+      setPoolReturned(prev => { const next = new Set(prev); next.add(w.id); return next; });
     }
 
     setTimeout(() => { setFlipFlash(null); setFlipped(false); nextCard(); }, 420);
@@ -486,16 +530,9 @@ export default function LexiCard() {
     setRStats(s => ({ ...s, ok: s.ok + (ok ? 1 : 0), bad: s.bad + (ok ? 0 : 1), xp: s.xp + xpGain }));
     updateWordInDecks(w.id, vmUpd, ok);
 
-    // Daily pool: špatně nebo tuším (quality < 5, !ok — zde quality 0) → vrátit do poolu
-    // Pro transl/pron: ok = quality>=3, ale "tuším" neexistuje — jen ok nebo špatně
-    // Pravidlo: špatně → vrátit do poolu
-    if (dailyPool && !ok) {
-      setDailyPool(prev => {
-        const next = new Set(prev);
-        next.add(w.id);
-        return next;
-      });
-      setRWords(ws => [...ws, w]);
+    // Pool: špatně → vrátit do poolReturned (do příštího kola, ne do aktuálního)
+    if (poolUnseen !== null && !ok) {
+      setPoolReturned(prev => { const next = new Set(prev); next.add(w.id); return next; });
     }
   }
 
