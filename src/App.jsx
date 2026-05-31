@@ -372,11 +372,13 @@ export default function LexiCard() {
     } else {
       allWords = deck?.words ?? [];
     }
+    // Rebuild daily pool from current state (words due today, including ones returned to pool)
     const poolWords = buildDailyPool(allWords);
     const poolIds = new Set(poolWords.map(w => w.id));
     setDailyPool(poolIds);
     setDailyPoolDone(false);
-    const words = pickRound(allWords);
+    // Next round = max 15 words from the remaining daily pool
+    const words = pickRound(poolWords.length ? poolWords : allWords);
     setRWords(words); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
     saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
     setScreen("study");

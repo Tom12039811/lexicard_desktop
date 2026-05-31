@@ -206,7 +206,7 @@ export function vmGetBox(word) {
 }
 
 /* ── pickRound: sestavení sady ke studiu ───────────────────── */
-export function pickRound(words, size = 20) {
+export function pickRound(words, size = 15) {
   if (!words?.length) return [];
   const t = Date.now();
 
