@@ -253,6 +253,42 @@ export function comboInfo(combo) {
   return { txt: `💥 ${combo}×`, color: "#e87050", mult: "×3" };
 }
 
+/* ── Počet splatných slov v balíčku ────────────────────────── */
+export function dueCount(words) {
+  if (!words?.length) return 0;
+  const t = Date.now();
+  return words.filter(w => !w.vmNextReview || w.vmNextReview <= t).length;
+}
+
+/* ── Řazení balíčků ────────────────────────────────────────── */
+export function sortDecks(decks, key) {
+  if (!decks) return [];
+  const arr = [...decks];
+  switch (key) {
+    case "alpha":   return arr.sort((a, b) => a.name.localeCompare(b.name));
+    case "due":     return arr.sort((a, b) => dueCount(b.words) - dueCount(a.words));
+    case "newest":  return arr.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+    case "oldest":  return arr.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+    case "size":    return arr.sort((a, b) => (b.words?.length ?? 0) - (a.words?.length ?? 0));
+    default:        return arr;
+  }
+}
+
+/* ── Řazení slov v balíčku ─────────────────────────────────── */
+export function sortWords(words, key) {
+  if (!words) return [];
+  const arr = [...words];
+  switch (key) {
+    case "alpha":   return arr.sort((a, b) => a.en.localeCompare(b.en));
+    case "due":     return arr.sort((a, b) => (a.vmNextReview ?? 0) - (b.vmNextReview ?? 0));
+    case "score":   return arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    case "newest":  return arr.sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
+    case "oldest":  return arr.sort((a, b) => (a.addedAt ?? 0) - (b.addedAt ?? 0));
+    case "wrong":   return arr.sort((a, b) => (b.wStats?.wrong ?? 0) - (a.wStats?.wrong ?? 0));
+    default:        return arr;
+  }
+}
+
 /* ── Řazení statistik ──────────────────────────────────────── */
 export function sortStats(words, key) {
   if (!words) return [];
