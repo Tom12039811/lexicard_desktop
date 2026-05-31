@@ -1,262 +1,273 @@
-import { VM_INTERVALS, LVL_XP, LVL_NAMES } from "./constants.js";
+/* ══════════════════════════════════════════════════════════════
+   utils.js — LexiCard
+══════════════════════════════════════════════════════════════ */
 
-/* ─── SM-2 / Vocabulary Miner Box Algorithm ─────────────────── */
-export function vmGetBox(word) {
-  return Math.max(1, Math.min(8, word.vmBox ?? 1));
-}
+/* ── 5. Bezpečné generování ID ─────────────────────────────── */
+export const uid = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
-export function vmUpdate(word, quality) {
-  // quality: 0=Nevím/špatně, 3=Tuším, 5=Vím/správně
-  const box = vmGetBox(word);
-  let newBox, newLastReview, newNextReview;
-  const now = Date.now();
+/* ── Timestamp helper ──────────────────────────────────────── */
+export const now = () => Date.now();
 
-  if (quality >= 5) {
-    // Vím → krabička +1, posunutí času
-    newBox = Math.min(8, box + 1);
-    newLastReview = now;
-    newNextReview = now + VM_INTERVALS[newBox] * 86400000;
-  } else if (quality === 3) {
-    // Tuším → zůstane ve stejné krabičce, čas se NEposouvá
-    newBox = box;
-    newLastReview = word.vmLastReview ?? now;
-    newNextReview = word.vmNextReview ?? (now + VM_INTERVALS[box] * 86400000);
-  } else {
-    // Nevím → krabička -3 (min 1), čas se NEposouvá
-    newBox = Math.max(1, box - 3);
-    newLastReview = word.vmLastReview ?? now;
-    newNextReview = word.vmNextReview ?? (now + VM_INTERVALS[newBox] * 86400000);
-  }
-  return { vmBox: newBox, vmLastReview: newLastReview, vmNextReview: newNextReview };
-}
-
-export function vmPickRound(words, n = 20) {
-  const t = Date.now();
-  const due = words.filter(w => !w.vmNextReview || w.vmNextReview <= t);
-  let pool = due.length >= n
-    ? due
-    : [...words].sort((a, b) => (a.vmNextReview ?? 0) - (b.vmNextReview ?? 0)).slice(0, n);
-  pool = [...pool].sort((a, b) => vmGetBox(a) - vmGetBox(b));
-  if (pool.length <= n) return shuffle(pool);
-  const result = [];
-  let ci = 0;
-  for (let i = 0; i < n; i++) {
-    ci = ci + Math.floor(Math.random() * (pool.length - ci) / (n - i) + 0.99);
-    ci = Math.min(ci, pool.length - 1);
-    result.push(pool[ci]);
-  }
-  return shuffle(result);
-}
-
-export function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-export function vmDueCount(words) {
-  const t = Date.now();
-  return words.filter(w => !w.vmNextReview || w.vmNextReview <= t).length;
-}
-
-// Legacy aliases
-export const pickRound = vmPickRound;
-export const dueCount = vmDueCount;
-
-/* ─── XP & Levels ────────────────────────────────────────────── */
-export function getLevel(xp) {
-  let lv = 0;
-  while (lv < LVL_XP.length - 1 && xp >= LVL_XP[lv + 1]) lv++;
-  const curr = LVL_XP[lv];
-  const next = LVL_XP[lv + 1] ?? Math.round(LVL_XP[lv] * 1.5);
-  return {
-    level: lv + 1,
-    name: LVL_NAMES[lv] ?? "Legenda",
-    curr,
-    next,
-    pct: Math.min(100, Math.round((xp - curr) / (next - curr) * 100)),
-  };
-}
-
-export function calcXP(quality, combo = 0, isFlip = false) {
-  if (isFlip) return 0;
-  if (quality >= 5) return 10;
-  if (quality === 3) return 5;
-  return 0;
-}
-
-export function comboInfo(n) {
-  if (n >= 10) return { txt: "🔥 MEGA", color: "#ff6b35", mult: "×3" };
-  if (n >= 5)  return { txt: "⚡ SUPER", color: "#d4a853", mult: "×2" };
-  if (n >= 3)  return { txt: "✨ COMBO", color: "#7090c8", mult: "×1.5" };
-  return null;
-}
-
+/* ── 1. Oprava Streaku (UTC, časová pásma) ─────────────────── */
 export function checkStreak(gs) {
-  const today = new Date().toDateString();
+  const today = new Date().toISOString().split("T")[0];
   const last = gs.lastStudyDate;
   if (last === today) return gs;
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
   const newStreak = last === yesterday ? (gs.dailyStreak ?? 0) + 1 : 1;
   return { ...gs, dailyStreak: newStreak, lastStudyDate: today };
 }
 
-/* ─── Helpers ────────────────────────────────────────────────── */
-export const uid = () => Math.random().toString(36).slice(2, 9);
-export const now = () => Date.now();
-
-export function norm(t) {
-  return (t || "").normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
-}
-
-export function parseSyn(f) {
-  return (f || "").split(/[\/,]/).map(s => s.trim()).filter(Boolean);
-}
-
-export function localMatch(input, field) {
-  const s = norm(input);
-  for (const c of parseSyn(field)) {
-    const e = norm(c);
-    if (!e) continue;
-    if (s === e) return true;
-    const ew = e.split(" "), sw = s.split(" ");
-    if (ew.length === 1 && sw.some(w => w === ew[0])) return true;
-    if (sw.length === 1 && ew.some(w => w === sw[0])) return true;
-    if (ew.length > 1 && ew.filter(w => sw.includes(w)).length / ew.length >= 0.72) return true;
-    if (ew.length === 1 && sw.length === 1 && lev(s, e) <= Math.floor(e.length * 0.25)) return true;
-    const a = sw.filter(w => w !== "se" && w !== "si").join(" ");
-    const b = ew.filter(w => w !== "se" && w !== "si").join(" ");
-    if (a && b && a === b) return true;
-  }
-  return false;
-}
-
-export function lev(a, b) {
-  const m = a.length, n = b.length;
-  const dp = Array.from({ length: m + 1 }, (_, i) => Array.from({ length: n + 1 }, (_, j) => i ? j ? 0 : i : j));
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= n; j++)
-      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-  return dp[m][n];
-}
-
-export function playSound(type) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const master = ctx.createGain();
-    master.gain.value = 0.08;
-    master.connect(ctx.destination);
-    if (type === "ok") {
-      [[659, .0, .22], [784, .15, .38]].forEach(([f, s, e]) => {
-        const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = "sine"; o.frequency.value = f;
-        o.connect(g); g.connect(master);
-        g.gain.setValueAtTime(0, ctx.currentTime + s);
-        g.gain.linearRampToValueAtTime(1, ctx.currentTime + s + .03);
-        g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + e + .12);
-        o.start(ctx.currentTime + s); o.stop(ctx.currentTime + e + .15);
-      });
-    } else {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = "sine"; o.frequency.value = 300;
-      o.connect(g); g.connect(master);
-      g.gain.setValueAtTime(0, ctx.currentTime);
-      g.gain.linearRampToValueAtTime(1, ctx.currentTime + .04);
-      g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .3);
-      o.start(ctx.currentTime); o.stop(ctx.currentTime + .35);
-    }
-  } catch {}
-}
-
-export function doSpeak(synth, text, lang) {
-  if (!synth || !text) return;
-  synth.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = lang; u.rate = 0.82;
-  synth.speak(u);
-}
-
-export function sortWords(w, k) {
-  const a = [...w];
-  if (k === "en-asc")   return a.sort((a, b) => a.en.localeCompare(b.en));
-  if (k === "en-desc")  return a.sort((a, b) => b.en.localeCompare(a.en));
-  if (k === "cs-asc")   return a.sort((a, b) => a.cs.localeCompare(b.cs));
-  if (k === "cs-desc")  return a.sort((a, b) => b.cs.localeCompare(a.cs));
-  if (k === "date-asc") return a.sort((a, b) => (a.addedAt ?? 0) - (b.addedAt ?? 0));
-  if (k === "date-desc")return a.sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
-  return a;
-}
-
-export function sortDecks(d, k) {
-  const a = [...d];
-  if (k === "name-asc")  return a.sort((a, b) => a.name.localeCompare(b.name));
-  if (k === "name-desc") return a.sort((a, b) => b.name.localeCompare(a.name));
-  if (k === "date-asc")  return a.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
-  if (k === "date-desc") return a.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-  return a;
-}
-
-export function sortStats(w, k) {
-  const a = [...w];
-  const wt = x => x.wStats?.total ?? 0;
-  const wc = x => x.wStats?.correct ?? 0;
-  const ww = x => x.wStats?.wrong ?? 0;
-  const pct = x => wt(x) ? (wc(x) / wt(x)) : 0;
-  if (k === "en-asc")      return a.sort((a, b) => a.en.localeCompare(b.en));
-  if (k === "en-desc")     return a.sort((a, b) => b.en.localeCompare(a.en));
-  if (k === "total-desc")  return a.sort((a, b) => wt(b) - wt(a));
-  if (k === "total-asc")   return a.sort((a, b) => wt(a) - wt(b));
-  if (k === "correct-desc")return a.sort((a, b) => wc(b) - wc(a));
-  if (k === "wrong-desc")  return a.sort((a, b) => ww(b) - ww(a));
-  if (k === "pct-desc")    return a.sort((a, b) => pct(b) - pct(a));
-  if (k === "pct-asc")     return a.sort((a, b) => pct(a) - pct(b));
-  if (k === "score-desc")  return a.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  return a;
-}
-
-/* ─── Dictionary API ─────────────────────────────────────────── */
+/* ── 2. Oprava API Dictionary (cache + ochrana sítě) ───────── */
 const _dc = new Map();
-
-export async function fetchDict(word) {
+export async function fetchDict(word, langCode = "en") {
   const k = word.toLowerCase().trim();
-  if (_dc.has(k)) return _dc.get(k);
+  const cacheKey = `${langCode}-${k}`;
+  if (_dc.has(cacheKey)) return _dc.get(cacheKey);
+
   try {
-    const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(k)}`);
-    if (!r.ok) { _dc.set(k, null); return null; }
+    const r = await fetch(
+      `https://api.dictionaryapi.dev/api/v2/entries/${langCode}/${encodeURIComponent(k)}`
+    );
+    // 404 = slovo neexistuje → uložit null natrvalo
+    if (r.status === 404) { _dc.set(cacheKey, null); return null; }
+    // Jiná chyba (500, výpadek) → NEukládat, zkusit znovu příště
+    if (!r.ok) throw new Error("Síťová chyba nebo API nedostupné");
+
     const d = await r.json(), e = d[0];
     const ipa   = e.phonetics?.find(p => p.text)?.text ?? null;
     const audio = e.phonetics?.find(p => p.audio && p.audio.length > 4)?.audio ?? null;
     const ex    = e.meanings?.[0]?.definitions?.[0]?.example ?? null;
-    const res   = { ipa, audio, example: ex };
-    _dc.set(k, res);
+
+    const res = { ipa, audio, example: ex };
+    _dc.set(cacheKey, res);
     return res;
-  } catch { _dc.set(k, null); return null; }
+  } catch (error) {
+    console.warn("Chyba stahování slovníku:", error);
+    return null; // Nezapamatovat — zkusí se znovu
+  }
 }
+
+/* ── 3. Oprava Přehrávání Zvuku (AudioBuffer cache) ────────── */
+const audioBufferCache = new Map();
+let sharedAudioCtx = null;
 
 export function playAudio(url) {
   if (!url) return;
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!sharedAudioCtx)
+      sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (sharedAudioCtx.state === "suspended") sharedAudioCtx.resume();
+
+    if (audioBufferCache.has(url)) {
+      const src  = sharedAudioCtx.createBufferSource();
+      const gain = sharedAudioCtx.createGain();
+      gain.gain.value = 1.5;
+      src.buffer = audioBufferCache.get(url);
+      src.connect(gain);
+      gain.connect(sharedAudioCtx.destination);
+      src.start(0);
+      return;
+    }
+
     fetch(url)
       .then(r => r.arrayBuffer())
-      .then(buf => ctx.decodeAudioData(buf))
+      .then(buf => sharedAudioCtx.decodeAudioData(buf))
       .then(decoded => {
-        const src = ctx.createBufferSource();
-        const gain = ctx.createGain();
-        let peak = 0;
-        for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
-          const data = decoded.getChannelData(ch);
-          for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
-        }
-        gain.gain.value = peak > 0 ? Math.min(0.75 / peak, 3) : 1;
+        audioBufferCache.set(url, decoded);
+        const src  = sharedAudioCtx.createBufferSource();
+        const gain = sharedAudioCtx.createGain();
+        gain.gain.value = 1.5;
         src.buffer = decoded;
-        src.connect(gain); gain.connect(ctx.destination);
+        src.connect(gain);
+        gain.connect(sharedAudioCtx.destination);
         src.start(0);
-      }).catch(() => { new Audio(url).play().catch(() => {}); });
+      })
+      .catch(() => { new Audio(url).play().catch(() => {}); });
   } catch {
     try { new Audio(url).play(); } catch {}
+  }
+}
+
+/* ── Speech synthesis ──────────────────────────────────────── */
+export function doSpeak(synth, text, lang) {
+  if (!synth || !text) return;
+  synth.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = lang;
+  u.rate = 0.9;
+  synth.speak(u);
+}
+
+/* ── UI Sounds ─────────────────────────────────────────────── */
+const _soundCtx = { ctx: null };
+export function playSound(type) {
+  try {
+    if (!_soundCtx.ctx)
+      _soundCtx.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _soundCtx.ctx;
+    if (ctx.state === "suspended") ctx.resume();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    if (type === "ok") {
+      osc.frequency.setValueAtTime(520, ctx.currentTime);
+      osc.frequency.setValueAtTime(680, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.22);
+    } else {
+      osc.frequency.setValueAtTime(280, ctx.currentTime);
+      osc.frequency.setValueAtTime(210, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.28);
+    }
+  } catch {}
+}
+
+/* ── 4. Optimalizace Levenshtein (early exit) ──────────────── */
+function lev(a, b) {
+  if (Math.abs(a.length - b.length) > 3) return 4;
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (i ? (j ? 0 : i) : j))
+  );
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] =
+        a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+  return dp[m][n];
+}
+
+/* ── Normalizace textu pro porovnávání ─────────────────────── */
+function norm(s) {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim();
+}
+
+/* ── Lokální porovnání odpovědi ────────────────────────────── */
+export function localMatch(given, expected) {
+  if (!given || !expected) return false;
+  const g = norm(given);
+  const variants = expected.split(/[/,]/).map(v => norm(v.trim())).filter(Boolean);
+  return variants.some(v => lev(g, v) <= 1);
+}
+
+/* ── Parsování synonym (odděleno lomítkem) ─────────────────── */
+export function parseSyn(str) {
+  if (!str) return [];
+  return str.split("/").map(s => s.trim()).filter(Boolean);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SPACED REPETITION (SM-2 inspirováno)
+══════════════════════════════════════════════════════════════ */
+
+/* Box → interval v ms */
+const BOX_INTERVALS = [
+  0,              // box 0 (unused)
+  1 * 86400000,   // box 1 → 1 den
+  3 * 86400000,   // box 2 → 3 dny
+  7 * 86400000,   // box 3 → 7 dní
+  14 * 86400000,  // box 4 → 14 dní
+  30 * 86400000,  // box 5 → 30 dní
+];
+
+export function vmUpdate(word, quality) {
+  const box = word.vmBox ?? 1;
+  let newBox;
+  if (quality >= 5)      newBox = Math.min(box + 1, 5);   // Vím → postup
+  else if (quality >= 3) newBox = Math.max(box - 1, 1);   // Tuším → malý krok zpět
+  else                   newBox = 1;                        // Neznám → reset
+
+  const interval = BOX_INTERVALS[newBox] ?? BOX_INTERVALS[1];
+  return {
+    vmBox: newBox,
+    vmLastReview: Date.now(),
+    vmNextReview: Date.now() + interval,
+  };
+}
+
+export function vmGetBox(word) {
+  return word.vmBox ?? 1;
+}
+
+/* ── pickRound: sestavení sady ke studiu ───────────────────── */
+export function pickRound(words, size = 20) {
+  if (!words?.length) return [];
+  const t = Date.now();
+
+  // 1. Splatná dnes (overdue)
+  const due = words.filter(w => !w.vmNextReview || w.vmNextReview <= t);
+  // 2. Nová (nikdy nerecenzovaná)
+  const fresh = words.filter(w => !w.vmLastReview && w.vmNextReview === null);
+  // 3. Budoucí (padding)
+  const future = words.filter(w => w.vmNextReview && w.vmNextReview > t)
+    .sort((a, b) => (a.vmNextReview ?? 0) - (b.vmNextReview ?? 0));
+
+  const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+  const pool = [...shuffle(due), ...shuffle(fresh), ...future];
+
+  return pool.slice(0, size);
+}
+
+/* ── XP výpočet ────────────────────────────────────────────── */
+export function calcXP(quality, combo) {
+  if (quality < 3) return 0;
+  const base = quality >= 5 ? 3 : 1;
+  const mult = combo >= 10 ? 3 : combo >= 5 ? 2 : 1;
+  return base * mult;
+}
+
+/* ── Level systém ──────────────────────────────────────────── */
+export function getLevel(xp) {
+  const thresholds = [0, 50, 150, 300, 500, 800, 1200, 1800, 2600, 3600, 5000];
+  let level = 1;
+  for (let i = 0; i < thresholds.length; i++) {
+    if (xp >= thresholds[i]) level = i + 1;
+  }
+  const next = thresholds[level] ?? null;
+  const prev = thresholds[level - 1] ?? 0;
+  const progress = next ? Math.round(((xp - prev) / (next - prev)) * 100) : 100;
+  return { level, next, progress };
+}
+
+/* ── Combo info (label + barva pro UI) ─────────────────────── */
+export function comboInfo(combo) {
+  if (combo < 3) return null;
+  if (combo < 5)  return { txt: `🔥 ${combo}×`, color: "#c8a050", mult: "×1.5" };
+  if (combo < 10) return { txt: `⚡ ${combo}×`, color: "#7090e8", mult: "×2" };
+  return { txt: `💥 ${combo}×`, color: "#e87050", mult: "×3" };
+}
+
+/* ── Řazení statistik ──────────────────────────────────────── */
+export function sortStats(words, key) {
+  if (!words) return [];
+  const arr = [...words];
+  switch (key) {
+    case "alpha":   return arr.sort((a, b) => a.en.localeCompare(b.en));
+    case "score":   return arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    case "wrong":   return arr.sort((a, b) => (b.wStats?.wrong ?? 0) - (a.wStats?.wrong ?? 0));
+    case "success": return arr.sort((a, b) => {
+      const pa = a.wStats?.total ? a.wStats.correct / a.wStats.total : 0;
+      const pb = b.wStats?.total ? b.wStats.correct / b.wStats.total : 0;
+      return pb - pa;
+    });
+    case "box":     return arr.sort((a, b) => (b.vmBox ?? 1) - (a.vmBox ?? 1));
+    case "due":     return arr.sort((a, b) => (a.vmNextReview ?? 0) - (b.vmNextReview ?? 0));
+    default:        return arr;
   }
 }
