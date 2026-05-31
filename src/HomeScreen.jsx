@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { C, DECK_SORTS, STYLE } from "./constants.js";
 import { sortDecks, dueCount, getLevel } from "./utils.js";
-import { LangDropdown, UploadModal, FolderModal, ConfirmModal, MoveFolderModal } from "./modals.jsx";
+import { LangDropdown, UploadModal, FolderModal, ConfirmModal, MoveFolderModal, FolderStatsModal } from "./modals.jsx";
 
 export default function HomeScreen({
   decks, langs, activeLang, gameStats, folders,
   onLangSwitch, onAddLang, onEditLang, onDeleteLang,
   onSelect, onFileUpload, onSampleDeck,
-  onAddFolder, onRenameFolder, onDeleteFolder, onMoveDeck
+  onAddFolder, onRenameFolder, onDeleteFolder, onMoveDeck,
+  onFolderStudy
 }) {
   const [sort, setSort] = useState("date-desc");
   const [showUpload, setShowUpload] = useState(false);
@@ -16,6 +17,7 @@ export default function HomeScreen({
   const [delFolder, setDelFolder] = useState(null);
   const [moveInfo, setMoveInfo] = useState(null);
   const [openFolders, setOpenFolders] = useState({});
+  const [folderStats, setFolderStats] = useState(null); // folder object for stats modal
 
   const ld = sortDecks(decks.filter(d => d.lang === activeLang), sort);
   const lc = langs.find(l => l.id === activeLang) || langs[0];
@@ -59,6 +61,7 @@ export default function HomeScreen({
       {editFolder && <FolderModal title="Přejmenovat složku" initial={editFolder} onClose={() => setEditFolder(null)} onSave={name => { onRenameFolder(editFolder.id, name); setEditFolder(null); }} />}
       {delFolder && <ConfirmModal title="Smazat složku?" msg="Balíčky ve složce budou přesunuty na hlavní stránku." label="Smazat složku" onConfirm={() => { onDeleteFolder(delFolder.id); }} onClose={() => setDelFolder(null)} />}
       {moveInfo && <MoveFolderModal deck={moveInfo.deck} folders={langFolders} currentFolderId={moveInfo.deck.folderId} onClose={() => setMoveInfo(null)} onMove={fid => onMoveDeck(moveInfo.deck.id, fid)} />}
+      {folderStats && <FolderStatsModal folder={folderStats} decks={decks} onClose={() => setFolderStats(null)} />}
 
       {/* header */}
       <div style={{ width: "100%", maxWidth: 780, display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1rem", gap: 10 }}>
@@ -143,6 +146,20 @@ export default function HomeScreen({
                     <span style={{ fontSize: 16 }}>{isOpen ? "📂" : "📁"}</span>
                     <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 15, fontWeight: 600, color: C.text, flex: 1 }}>{f.name}</span>
                     <span style={{ fontSize: 11, color: C.muted }}>{fDecks.length} bal.</span>
+                    {fDecks.length > 0 && (
+                      <button className="btn" onClick={e => { e.stopPropagation(); onFolderStudy(f.id); }} title="Učení ze složky"
+                        style={{ background: "var(--lc-selBg)", border: `1px solid var(--lc-selBorder)`, color: C.gold, borderRadius: 7, padding: "3px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                        onMouseEnter={e => { e.currentTarget.style.background = C.gold; e.currentTarget.style.color = C.bg; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "var(--lc-selBg)"; e.currentTarget.style.color = C.gold; }}>
+                        ▶ Učení
+                      </button>
+                    )}
+                    <button className="btn" onClick={e => { e.stopPropagation(); setFolderStats(f); }} title="Statistiky složky"
+                      style={{ border: `1px solid var(--lc-statBg1)`, color: "#7090c8", borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer" }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = "#7090c8"}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = "var(--lc-statBg1)"}>
+                      📊
+                    </button>
                     <button className="btn" onClick={e => { e.stopPropagation(); setEditFolder(f); }} style={{ color: C.mutedDark, fontSize: 13, padding: "2px 5px" }} onMouseEnter={e => e.currentTarget.style.color = C.gold} onMouseLeave={e => e.currentTarget.style.color = C.mutedDark}>✏️</button>
                     <button className="btn" onClick={e => { e.stopPropagation(); setDelFolder(f); }} style={{ color: C.mutedDark, fontSize: 14, padding: "2px 5px" }} onMouseEnter={e => e.currentTarget.style.color = C.err} onMouseLeave={e => e.currentTarget.style.color = C.mutedDark}>×</button>
                     <span style={{ fontSize: 11, color: C.muted }}>{isOpen ? "▲" : "▼"}</span>
