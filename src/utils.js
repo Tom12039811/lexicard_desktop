@@ -51,42 +51,81 @@ export async function fetchDict(word, langCode = "en") {
   }
 }
 
-/* ── 3. Oprava Přehrávání Zvuku (AudioBuffer cache) ────────── */
-const audioBufferCache = new Map();
+/* ── 3. Oprava Přehrávání Zvuku (iOS PWA AudioContext fix) ─── */
+// Cache ukládá RAW ArrayBuffer místo AudioBuffer.
+// AudioBuffer je vázán na konkrétní AudioContext instanci —
+// pokud iOS context zneplatní (po přechodu do pozadí), cache
+// by byla nepoužitelná. ArrayBuffer přežije jakýkoliv reset contextu.
+const audioBufferCache = new Map(); // url → ArrayBuffer
 let sharedAudioCtx = null;
+
+function getAudioCtx() {
+  // Zneplatněný nebo interrupted context (iOS po návratu z pozadí) → nový
+  if (
+    !sharedAudioCtx ||
+    sharedAudioCtx.state === "closed" ||
+    sharedAudioCtx.state === "interrupted"
+  ) {
+    sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return sharedAudioCtx;
+}
+
+// iOS PWA: po návratu z pozadí resume + případný reset broken contextu
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && sharedAudioCtx) {
+      if (
+        sharedAudioCtx.state === "suspended" ||
+        sharedAudioCtx.state === "interrupted"
+      ) {
+        sharedAudioCtx.resume().catch(() => {
+          // Resume selhal → zahodit; getAudioCtx() vytvoří nový při příštím přehrání
+          sharedAudioCtx = null;
+        });
+      }
+    }
+  });
+}
+
+function _playBuffer(arrayBuf) {
+  const ctx = getAudioCtx();
+  const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
+  resume
+    .then(() =>
+      // .slice(0) = kopie před decode; decodeAudioData na iOS detachuje
+      // předaný ArrayBuffer (Web Audio spec), bez kopie by druhé přehrání
+      // ze cache crashlo s "detached ArrayBuffer" chybou
+      ctx.decodeAudioData(arrayBuf.slice(0))
+    )
+    .then(decoded => {
+      const src  = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      gain.gain.value = 1.5;
+      src.buffer = decoded;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start(0);
+    })
+    .catch(() => {});
+}
 
 export function playAudio(url) {
   if (!url) return;
   try {
-    if (!sharedAudioCtx)
-      sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (sharedAudioCtx.state === "suspended") sharedAudioCtx.resume();
-
     if (audioBufferCache.has(url)) {
-      const src  = sharedAudioCtx.createBufferSource();
-      const gain = sharedAudioCtx.createGain();
-      gain.gain.value = 1.5;
-      src.buffer = audioBufferCache.get(url);
-      src.connect(gain);
-      gain.connect(sharedAudioCtx.destination);
-      src.start(0);
+      _playBuffer(audioBufferCache.get(url));
       return;
     }
-
     fetch(url)
       .then(r => r.arrayBuffer())
-      .then(buf => sharedAudioCtx.decodeAudioData(buf))
-      .then(decoded => {
-        audioBufferCache.set(url, decoded);
-        const src  = sharedAudioCtx.createBufferSource();
-        const gain = sharedAudioCtx.createGain();
-        gain.gain.value = 1.5;
-        src.buffer = decoded;
-        src.connect(gain);
-        gain.connect(sharedAudioCtx.destination);
-        src.start(0);
+      .then(buf => {
+        audioBufferCache.set(url, buf);
+        _playBuffer(buf);
       })
-      .catch(() => { new Audio(url).play().catch(() => {}); });
+      .catch(() => {
+        new Audio(url).play().catch(() => {});
+      });
   } catch {
     try { new Audio(url).play(); } catch {}
   }
