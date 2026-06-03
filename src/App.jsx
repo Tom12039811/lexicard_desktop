@@ -5,7 +5,7 @@ import { DEFAULT_LANGS, SAMPLE_WORDS, C, STYLE } from "./constants.js";
 import {
   uid, now, pickRound, vmUpdate, getLevel, calcXP,
   checkStreak, fetchDict, playAudio, doSpeak, playSound,
-  localMatch, parseSyn,
+  localMatch, parseSyn, unlockAudio,
 } from "./utils.js";
 import HomeScreen from "./HomeScreen.jsx";
 import DeckScreen from "./DeckScreen.jsx";
@@ -547,7 +547,7 @@ export default function LexiCard() {
 
   /* ── loading spinner ── */
   if (!loaded) return (
-    <div style={{ minHeight: "100dvh", background: "var(--lc-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div onPointerDown={unlockAudio} style={{ minHeight: "100dvh", background: "var(--lc-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: 32, height: 32, border: "3px solid var(--lc-inputBorder)", borderTopColor: "var(--lc-gold)", borderRadius: "50%", animation: "spin .8s linear infinite" }} />
       <style>{STYLE}</style>
     </div>

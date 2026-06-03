@@ -51,16 +51,16 @@ export async function fetchDict(word, langCode = "en") {
   }
 }
 
-/* ── 3. Oprava Přehrávání Zvuku (iOS PWA AudioContext fix) ─── */
-// Cache ukládá RAW ArrayBuffer místo AudioBuffer.
-// AudioBuffer je vázán na konkrétní AudioContext instanci —
-// pokud iOS context zneplatní (po přechodu do pozadí), cache
-// by byla nepoužitelná. ArrayBuffer přežije jakýkoliv reset contextu.
+/* ── 3. Přehrávání Zvuku (iOS AudioContext + SpeechSynthesis fix) ── */
+// iOS vyžaduje odemčení AudioContext i SpeechSynthesis přímým user gestem.
+// unlockAudio() voláme z App.jsx při prvním onPointerDown na root div.
+// Po unlocku funguje i auto-play z timeoutů/useEffect.
+
 const audioBufferCache = new Map(); // url → ArrayBuffer
 let sharedAudioCtx = null;
+let _audioUnlocked = false;
 
 function getAudioCtx() {
-  // Zneplatněný nebo interrupted context (iOS po návratu z pozadí) → nový
   if (
     !sharedAudioCtx ||
     sharedAudioCtx.state === "closed" ||
@@ -71,7 +71,31 @@ function getAudioCtx() {
   return sharedAudioCtx;
 }
 
-// iOS PWA: po návratu z pozadí resume + případný reset broken contextu
+// Voláno při prvním user gestu z App.jsx
+export function unlockAudio() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  try {
+    // AudioContext unlock: resume + přehrát nulový buffer (iOS to vyžaduje)
+    const ctx = getAudioCtx();
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch {}
+  try {
+    // SpeechSynthesis unlock: prázdná tichá utterance odemkne iOS synth engine
+    if (window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance("\u200b");
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+    }
+  } catch {}
+}
+
+// iOS PWA: po návratu z pozadí resume + reset broken contextu
 if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && sharedAudioCtx) {
@@ -79,10 +103,7 @@ if (typeof document !== "undefined") {
         sharedAudioCtx.state === "suspended" ||
         sharedAudioCtx.state === "interrupted"
       ) {
-        sharedAudioCtx.resume().catch(() => {
-          // Resume selhal → zahodit; getAudioCtx() vytvoří nový při příštím přehrání
-          sharedAudioCtx = null;
-        });
+        sharedAudioCtx.resume().catch(() => { sharedAudioCtx = null; });
       }
     }
   });
@@ -92,12 +113,7 @@ function _playBuffer(arrayBuf) {
   const ctx = getAudioCtx();
   const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
   resume
-    .then(() =>
-      // .slice(0) = kopie před decode; decodeAudioData na iOS detachuje
-      // předaný ArrayBuffer (Web Audio spec), bez kopie by druhé přehrání
-      // ze cache crashlo s "detached ArrayBuffer" chybou
-      ctx.decodeAudioData(arrayBuf.slice(0))
-    )
+    .then(() => ctx.decodeAudioData(arrayBuf.slice(0)))
     .then(decoded => {
       const src  = ctx.createBufferSource();
       const gain = ctx.createGain();
@@ -123,9 +139,7 @@ export function playAudio(url) {
         audioBufferCache.set(url, buf);
         _playBuffer(buf);
       })
-      .catch(() => {
-        new Audio(url).play().catch(() => {});
-      });
+      .catch(() => { new Audio(url).play().catch(() => {}); });
   } catch {
     try { new Audio(url).play(); } catch {}
   }
@@ -135,10 +149,18 @@ export function playAudio(url) {
 export function doSpeak(synth, text, lang) {
   if (!synth || !text) return;
   synth.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = lang;
-  u.rate = 0.9;
-  synth.speak(u);
+  const speak = () => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    u.rate = 0.9;
+    synth.speak(u);
+  };
+  // iOS: po cancel() je nutný krátký gap jinak se nová utterance tiše ignoruje
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+    setTimeout(speak, 50);
+  } else {
+    speak();
+  }
 }
 
 /* ── UI Sounds ─────────────────────────────────────────────── */
