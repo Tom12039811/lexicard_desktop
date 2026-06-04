@@ -4,8 +4,8 @@ import * as XLSX from "xlsx";
 import { DEFAULT_LANGS, SAMPLE_WORDS, C, STYLE } from "./constants.js";
 import {
   uid, now, pickRound, vmUpdate, getLevel, calcXP,
-  checkStreak, fetchDict, playAudio, doSpeak, playSound,
-  localMatch, parseSyn, unlockAudio,
+  checkStreak, fetchDict, playAudio, doSpeak, playSound, speakWithFallback,
+  localMatch, parseSyn,
 } from "./utils.js";
 import HomeScreen from "./HomeScreen.jsx";
 import DeckScreen from "./DeckScreen.jsx";
@@ -145,21 +145,36 @@ export default function LexiCard() {
     const w = rWords[rIdx];
     if (mode === "flip") {
       if (flipDir === "en-cs" && !flipped) {
+        // Přední strana EN → přehraj anglicky
         const t = setTimeout(() => speakWord(w.en, "en-US"), 400);
+        return () => clearTimeout(t);
+      }
+      if (flipDir === "cs-en" && !flipped) {
+        // Přední strana CS → přehraj česky
+        const t = setTimeout(() => doSpeak(synthRef.current, parseSyn(w.cs)[0] || w.cs, "cs-CZ"), 400);
         return () => clearTimeout(t);
       }
       return;
     }
-    if (mode === "pron" || mode === "transl") {
-      const text = mode === "pron" ? w.en : translDir === "en-cs" ? w.en : w.cs;
-      const lang = translDir === "cs-en" ? "cs-CZ" : "en-US";
-      const t = setTimeout(() => {
-        if (mode !== "cs-en" && dictEntry?.audio) playAudio(dictEntry.audio);
-        else speakWord(text, lang);
-      }, 400);
+    if (mode === "pron") {
+      // Pronunciation mode — vždy přehraj anglicky (učíme se anglickou výslovnost)
+      const t = setTimeout(() => speakWord(w.en, "en-US"), 400);
       return () => clearTimeout(t);
     }
-  }, [rIdx, mode, screen, feedback, autoPlay, dictEntry, flipped, flipDir]);
+    if (mode === "transl") {
+      // Translation mode — přehraj slovo které je zobrazeno jako otázka
+      if (translDir === "en-cs") {
+        // Zobrazuje se anglické slovo → přehraj anglicky
+        const t = setTimeout(() => speakWord(w.en, "en-US"), 400);
+        return () => clearTimeout(t);
+      } else {
+        // Zobrazuje se české slovo → přehraj česky
+        const csWord = parseSyn(w.cs)[0] || w.cs;
+        const t = setTimeout(() => doSpeak(synthRef.current, csWord, "cs-CZ"), 400);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [rIdx, mode, screen, feedback, autoPlay, dictEntry, flipped, flipDir, translDir]);
 
   const deck = decks.find(d => d.id === deckId) ?? null;
 
@@ -477,7 +492,18 @@ export default function LexiCard() {
   function stopListen() { recRef.current?.stop(); setListen(false); }
 
   /* ── speak ── */
-  function speakWord(text, lang) { if (lang === "en-US" && dictEntry?.audio) playAudio(dictEntry.audio); else doSpeak(synthRef.current, text, lang); }
+  // speakWord: vždy přehraje něco — nejdřív pokusí API audio (jen pro angličtinu),
+  // při selhání nebo pro češtinu automaticky fallback na synth.
+  function speakWord(text, lang) {
+    if (!text) return;
+    if (lang === "en-US" && dictEntry?.audio) {
+      // Anglické slovo + máme audio URL → playAudio s fallbackem na synth
+      speakWithFallback(synthRef.current, dictEntry.audio, text, lang);
+    } else {
+      // Česky nebo bez audio → přímo synth
+      doSpeak(synthRef.current, text, lang);
+    }
+  }
 
   /* ── flip answer ── */
   function flipAnswer(quality) {
@@ -547,7 +573,7 @@ export default function LexiCard() {
 
   /* ── loading spinner ── */
   if (!loaded) return (
-    <div onPointerDown={unlockAudio} style={{ minHeight: "100dvh", background: "var(--lc-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "100dvh", background: "var(--lc-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: 32, height: 32, border: "3px solid var(--lc-inputBorder)", borderTopColor: "var(--lc-gold)", borderRadius: "50%", animation: "spin .8s linear infinite" }} />
       <style>{STYLE}</style>
     </div>
@@ -629,8 +655,17 @@ export default function LexiCard() {
       onSetPlaySounds={v => { setPlaySounds(v); try { localStorage.setItem("lc6_playSounds", String(v)); } catch {} }}
       onFlip={() => {
         setFlipped(true);
-        if (flipDir === "cs-en" && autoPlay) {
-          setTimeout(() => speakWord(rWords[rIdx]?.en, "en-US"), 200);
+        if (autoPlay) {
+          const w = rWords[rIdx];
+          if (!w) return;
+          if (flipDir === "cs-en") {
+            // Otočili jsme na EN (back side) → přehraj anglicky
+            setTimeout(() => speakWord(w.en, "en-US"), 200);
+          } else {
+            // flipDir === "en-cs": otočili jsme na CS (back side) → přehraj česky
+            const csWord = parseSyn(w.cs)[0] || w.cs;
+            setTimeout(() => doSpeak(synthRef.current, csWord, "cs-CZ"), 200);
+          }
         }
       }}
       onFlipAnswer={flipAnswer}

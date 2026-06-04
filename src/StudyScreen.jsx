@@ -370,8 +370,8 @@ export default function StudyScreen({
             flipFlash={flipFlash} dictEntry={dictEntry} allSyn={allSyn}
             onFlip={onFlip}
             onAnswer={onFlipAnswer}
-            onSpeak={() => onSpeak(w.en, "en-US")}
-            onSpeakBack={() => onSpeak(w.en, "en-US")}
+            onSpeak={() => onSpeak(flipDir === "en-cs" ? w.en : (parseSyn(w.cs)[0] || w.cs), flipDir === "en-cs" ? "en-US" : "cs-CZ")}
+            onSpeakBack={() => onSpeak(flipDir === "en-cs" ? (parseSyn(w.cs)[0] || w.cs) : w.en, flipDir === "en-cs" ? "cs-CZ" : "en-US")}
           />
         )}
 

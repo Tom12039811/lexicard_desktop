@@ -51,16 +51,16 @@ export async function fetchDict(word, langCode = "en") {
   }
 }
 
-/* ── 3. Přehrávání Zvuku (iOS AudioContext + SpeechSynthesis fix) ── */
-// iOS vyžaduje odemčení AudioContext i SpeechSynthesis přímým user gestem.
-// unlockAudio() voláme z App.jsx při prvním onPointerDown na root div.
-// Po unlocku funguje i auto-play z timeoutů/useEffect.
-
+/* ── 3. Oprava Přehrávání Zvuku (iOS PWA AudioContext fix) ─── */
+// Cache ukládá RAW ArrayBuffer místo AudioBuffer.
+// AudioBuffer je vázán na konkrétní AudioContext instanci —
+// pokud iOS context zneplatní (po přechodu do pozadí), cache
+// by byla nepoužitelná. ArrayBuffer přežije jakýkoliv reset contextu.
 const audioBufferCache = new Map(); // url → ArrayBuffer
 let sharedAudioCtx = null;
-let _audioUnlocked = false;
 
 function getAudioCtx() {
+  // Zneplatněný nebo interrupted context (iOS po návratu z pozadí) → nový
   if (
     !sharedAudioCtx ||
     sharedAudioCtx.state === "closed" ||
@@ -71,31 +71,7 @@ function getAudioCtx() {
   return sharedAudioCtx;
 }
 
-// Voláno při prvním user gestu z App.jsx
-export function unlockAudio() {
-  if (_audioUnlocked) return;
-  _audioUnlocked = true;
-  try {
-    // AudioContext unlock: resume + přehrát nulový buffer (iOS to vyžaduje)
-    const ctx = getAudioCtx();
-    if (ctx.state === "suspended") ctx.resume().catch(() => {});
-    const buf = ctx.createBuffer(1, 1, 22050);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(ctx.destination);
-    src.start(0);
-  } catch {}
-  try {
-    // SpeechSynthesis unlock: prázdná tichá utterance odemkne iOS synth engine
-    if (window.speechSynthesis) {
-      const u = new SpeechSynthesisUtterance("\u200b");
-      u.volume = 0;
-      window.speechSynthesis.speak(u);
-    }
-  } catch {}
-}
-
-// iOS PWA: po návratu z pozadí resume + reset broken contextu
+// iOS PWA: po návratu z pozadí resume + případný reset broken contextu
 if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && sharedAudioCtx) {
@@ -103,17 +79,25 @@ if (typeof document !== "undefined") {
         sharedAudioCtx.state === "suspended" ||
         sharedAudioCtx.state === "interrupted"
       ) {
-        sharedAudioCtx.resume().catch(() => { sharedAudioCtx = null; });
+        sharedAudioCtx.resume().catch(() => {
+          // Resume selhal → zahodit; getAudioCtx() vytvoří nový při příštím přehrání
+          sharedAudioCtx = null;
+        });
       }
     }
   });
 }
 
-function _playBuffer(arrayBuf) {
+function _playBuffer(arrayBuf, fallbackFn) {
   const ctx = getAudioCtx();
   const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
   resume
-    .then(() => ctx.decodeAudioData(arrayBuf.slice(0)))
+    .then(() =>
+      // .slice(0) = kopie před decode; decodeAudioData na iOS detachuje
+      // předaný ArrayBuffer (Web Audio spec), bez kopie by druhé přehrání
+      // ze cache crashlo s "detached ArrayBuffer" chybou
+      ctx.decodeAudioData(arrayBuf.slice(0))
+    )
     .then(decoded => {
       const src  = ctx.createBufferSource();
       const gain = ctx.createGain();
@@ -123,43 +107,114 @@ function _playBuffer(arrayBuf) {
       gain.connect(ctx.destination);
       src.start(0);
     })
-    .catch(() => {});
+    .catch(() => { if (fallbackFn) fallbackFn(); });
 }
 
-export function playAudio(url) {
-  if (!url) return;
+export function playAudio(url, fallbackFn) {
+  if (!url) { if (fallbackFn) fallbackFn(); return; }
   try {
     if (audioBufferCache.has(url)) {
-      _playBuffer(audioBufferCache.get(url));
+      _playBuffer(audioBufferCache.get(url), fallbackFn);
       return;
     }
     fetch(url)
-      .then(r => r.arrayBuffer())
+      .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); })
       .then(buf => {
         audioBufferCache.set(url, buf);
-        _playBuffer(buf);
+        _playBuffer(buf, fallbackFn);
       })
-      .catch(() => { new Audio(url).play().catch(() => {}); });
+      .catch(() => {
+        // Fallback 1: HTML Audio element
+        const a = new Audio(url);
+        a.onerror = () => { if (fallbackFn) fallbackFn(); };
+        a.play().catch(() => { if (fallbackFn) fallbackFn(); });
+      });
   } catch {
-    try { new Audio(url).play(); } catch {}
+    try {
+      const a = new Audio(url);
+      a.onerror = () => { if (fallbackFn) fallbackFn(); };
+      a.play().catch(() => { if (fallbackFn) fallbackFn(); });
+    } catch { if (fallbackFn) fallbackFn(); }
   }
 }
 
-/* ── Speech synthesis ──────────────────────────────────────── */
+/* ── Speech synthesis (iOS-safe) ───────────────────────────── */
+// iOS Safari: synth.cancel() těsně před speak() způsobuje ticho.
+// Řešení: cancel → krátký setTimeout → speak.
+// Navíc na iOS synth někdy zamrzne po návratu z pozadí →
+// detekujeme stav "paused" a zavoláme resume() před speak().
 export function doSpeak(synth, text, lang) {
   if (!synth || !text) return;
-  synth.cancel();
-  const speak = () => {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang;
-    u.rate = 0.9;
-    synth.speak(u);
+  const _speak = () => {
+    try {
+      if (synth.paused) synth.resume();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang;
+      u.rate = 0.9;
+      u.volume = 1.0;
+      // iOS fallback: pokud synth zamrzne (speaking=true po 3s bez onend),
+      // zavoláme cancel a zkusíme znovu jednou
+      let done = false;
+      u.onend = () => { done = true; };
+      u.onerror = () => {
+        if (!done) {
+          done = true;
+          // Zkusit ještě jednou s krátkým zpožděním
+          setTimeout(() => {
+            try {
+              const u2 = new SpeechSynthesisUtterance(text);
+              u2.lang = lang; u2.rate = 0.9; u2.volume = 1.0;
+              synth.speak(u2);
+            } catch {}
+          }, 150);
+        }
+      };
+      synth.speak(u);
+      // iOS watchdog: pokud po 4s není onend, synth zamrz → reset
+      setTimeout(() => {
+        if (!done && synth.speaking) {
+          synth.cancel();
+        }
+      }, 4000);
+    } catch {}
   };
-  // iOS: po cancel() je nutný krátký gap jinak se nová utterance tiše ignoruje
-  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-    setTimeout(speak, 50);
+
+  if (synth.speaking || synth.pending) {
+    synth.cancel();
+    // iOS potřebuje tick navíc po cancel() jinak speak() tiše selže
+    setTimeout(_speak, 80);
   } else {
-    speak();
+    _speak();
+  }
+}
+
+/* ── speakWithFallback: zkusí audio URL, fallback na synth ──── */
+// Vždy přehraje něco: nejdřív pokusí API audio, při selhání synth.
+export function speakWithFallback(synth, audioUrl, text, lang) {
+  if (audioUrl) {
+    // Pokus o přehrání audio souboru, při chybě fallback na synth
+    playAudioWithFallback(audioUrl, () => doSpeak(synth, text, lang));
+  } else {
+    doSpeak(synth, text, lang);
+  }
+}
+
+function playAudioWithFallback(url, fallbackFn) {
+  if (!url) { fallbackFn(); return; }
+  try {
+    if (audioBufferCache.has(url)) {
+      _playBuffer(audioBufferCache.get(url), fallbackFn);
+      return;
+    }
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); })
+      .then(buf => {
+        audioBufferCache.set(url, buf);
+        _playBuffer(buf, fallbackFn);
+      })
+      .catch(() => fallbackFn());
+  } catch {
+    fallbackFn();
   }
 }
 
