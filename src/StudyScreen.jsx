@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { C, STYLE, MODES } from "./constants.js";
 import { parseSyn, comboInfo } from "./utils.js";
-import { SettingsDropdown } from "./modals.jsx";
+import { SettingsDropdown, EditWordModal } from "./modals.jsx";
 
 /* ══════════════════════════════════════════════════════════════
    FLIP SWIPE CARD
 ══════════════════════════════════════════════════════════════ */
-export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, allSyn, onFlip, onAnswer, onSpeak, onSpeakBack }) {
+export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, allSyn, onFlip, onAnswer, onSpeak, onSpeakBack, onEdit }) {
   const [drag, setDrag] = useState({ active: false, dx: 0, dy: 0 });
   const [hovered, setHovered] = useState(null);
   const startRef = useRef(null);
@@ -99,6 +99,7 @@ export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, all
         onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
         className={flipFlash ? `flash-${flipFlash}` : (drag.active ? "" : "card-in")}
         style={{
+          position: "relative",
           width: "100%", background: C.card,
           border: `1px solid ${hovered != null ? "#3a4a62" : C.border}`,
           borderRadius: 22, padding: "2.8rem 2rem", textAlign: "center",
@@ -110,6 +111,10 @@ export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, all
         }}
         onClick={!flipped ? onFlip : undefined}
       >
+        {/* pencil edit button */}
+        <button className="btn" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); onEdit(); }}
+          style={{ position: "absolute", top: 10, right: 10, border: `1px solid var(--lc-inputBorder)`, color: "var(--lc-mutedDark)", borderRadius: "50%", width: 28, height: 28, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "transparent", opacity: 0.7 }}
+          title="Upravit slovíčko">✏️</button>
         {!flipped ? (
           <>
             <div style={{ fontSize: 11, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 3, marginBottom: 18 }}>{frontFlag} — klikni pro překlad</div>
@@ -283,8 +288,9 @@ export default function StudyScreen({
   onSetIMode, onSetTyped, onSetAutoPlay, onSetPlaySounds,
   onFlip, onFlipAnswer, onStartListen, onStopListen,
   onSubmitTyped, onDontKnow, onNextCard, onBack,
-  onSpeak,
+  onSpeak, onEditWord,
 }) {
+  const [editWord, setEditWord] = useState(null);
   const w = rWords[rIdx];
   if (!w) return null;
 
@@ -372,6 +378,7 @@ export default function StudyScreen({
             onAnswer={onFlipAnswer}
             onSpeak={() => onSpeak(flipDir === "en-cs" ? w.en : (parseSyn(w.cs)[0] || w.cs), flipDir === "en-cs" ? "en-US" : "cs-CZ")}
             onSpeakBack={() => onSpeak(flipDir === "en-cs" ? (parseSyn(w.cs)[0] || w.cs) : w.en, flipDir === "en-cs" ? "cs-CZ" : "en-US")}
+            onEdit={() => setEditWord(w)}
           />
         )}
 
@@ -379,7 +386,11 @@ export default function StudyScreen({
         {!isFlip && (<>
           {/* question card */}
           <div key={w.id + mode + effDir} className="card-in"
-            style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: "1.2rem 1.5rem", textAlign: "center" }}>
+            style={{ position: "relative", width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: "1.2rem 1.5rem", textAlign: "center" }}>
+            {/* pencil edit button */}
+            <button className="btn" onClick={() => setEditWord(w)}
+              style={{ position: "absolute", top: 10, right: 10, border: `1px solid var(--lc-inputBorder)`, color: "var(--lc-mutedDark)", borderRadius: "50%", width: 28, height: 28, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "transparent", opacity: 0.7 }}
+              title="Upravit slovíčko">✏️</button>
             {isPron ? (
               <>
                 <div style={{ fontSize: 10, color: "var(--lc-ok)", textTransform: "uppercase", letterSpacing: 3, marginBottom: 8 }}>🔊 Výslovnost</div>
@@ -505,6 +516,15 @@ export default function StudyScreen({
           )}
         </>)}
       </div>
+
+      {/* Edit word modal */}
+      {editWord && (
+        <EditWordModal
+          word={editWord}
+          onClose={() => setEditWord(null)}
+          onSave={data => { onEditWord(editWord.id, data); setEditWord(null); }}
+        />
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { DEFAULT_LANGS, SAMPLE_WORDS, C, STYLE } from "./constants.js";
 import {
   uid, now, pickRound, vmUpdate, getLevel, calcXP,
-  checkStreak, fetchDict, playAudio, doSpeak, playSound, speakWithFallback,
+  checkStreak, fetchDict, doSpeak, playSound,
   localMatch, parseSyn,
 } from "./utils.js";
 import HomeScreen from "./HomeScreen.jsx";
@@ -139,42 +139,6 @@ export default function LexiCard() {
     return () => { clearTimeout(timerRef.current); clearInterval(intervalRef.current); };
   }, [feedback]);
 
-  /* ── auto speak ── */
-  useEffect(() => {
-    if (screen !== "study" || !rWords[rIdx] || feedback || !autoPlay) return;
-    const w = rWords[rIdx];
-    if (mode === "flip") {
-      if (flipDir === "en-cs" && !flipped) {
-        // Přední strana EN → přehraj anglicky
-        const t = setTimeout(() => speakWord(w.en, "en-US"), 400);
-        return () => clearTimeout(t);
-      }
-      if (flipDir === "cs-en" && !flipped) {
-        // Přední strana CS → přehraj česky
-        const t = setTimeout(() => doSpeak(synthRef.current, parseSyn(w.cs)[0] || w.cs, "cs-CZ"), 400);
-        return () => clearTimeout(t);
-      }
-      return;
-    }
-    if (mode === "pron") {
-      // Pronunciation mode — vždy přehraj anglicky (učíme se anglickou výslovnost)
-      const t = setTimeout(() => speakWord(w.en, "en-US"), 400);
-      return () => clearTimeout(t);
-    }
-    if (mode === "transl") {
-      // Translation mode — přehraj slovo které je zobrazeno jako otázka
-      if (translDir === "en-cs") {
-        // Zobrazuje se anglické slovo → přehraj anglicky
-        const t = setTimeout(() => speakWord(w.en, "en-US"), 400);
-        return () => clearTimeout(t);
-      } else {
-        // Zobrazuje se české slovo → přehraj česky
-        const csWord = parseSyn(w.cs)[0] || w.cs;
-        const t = setTimeout(() => doSpeak(synthRef.current, csWord, "cs-CZ"), 400);
-        return () => clearTimeout(t);
-      }
-    }
-  }, [rIdx, mode, screen, feedback, autoPlay, dictEntry, flipped, flipDir, translDir]);
 
   const deck = decks.find(d => d.id === deckId) ?? null;
 
@@ -214,6 +178,13 @@ export default function LexiCard() {
     setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, words: [...d.words, { id: uid(), en, cs, example, synonyms: synonyms || "", score: 0, addedAt: now(), vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 } }] }));
   }
   const delWord   = wid  => setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, words: d.words.filter(w => w.id !== wid) }));
+  function editWordInDecks(wid, data) {
+    // Funguje i pro folder study — prohledá všechny balíčky
+    setDecks(ds => ds.map(d => ({
+      ...d,
+      words: d.words.map(w => w.id !== wid ? w : { ...w, ...data }),
+    })));
+  }
   function delDeck()        { setDecks(ds => ds.filter(d => d.id !== deckId)); setScreen("home"); }
   function renameDeck(name) { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, name })); }
   function resetStats()     { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 }, words: d.words.map(w => ({ ...w, score: 0, vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 } })) })); }
@@ -281,9 +252,8 @@ export default function LexiCard() {
     setRWords(roundWords); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
     saveSession(roundWords, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, null);
     setScreen("study");
+    autoPlayForCard(roundWords[0], 600);
   }
-
-  /* ── start study: whole folder ── */
   function startFolderStudy(folderId) {
     const allWords = getFolderWords(folderId);
     if (!allWords.length) return;
@@ -302,6 +272,7 @@ export default function LexiCard() {
     setRWords(roundWords); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
     saveSession(roundWords, 0, { ok: 0, bad: 0, xp: 0 }, 0, did, mode, translDir, flipDir, folderId);
     setScreen("study");
+    autoPlayForCard(roundWords[0], 600);
   }
 
   function resumeStudy(decksSnap) {
@@ -313,9 +284,9 @@ export default function LexiCard() {
     setMode(s.mode); setTranslDir(s.translDir); setFlipDir(s.flipDir);
     setPoolUnseen(null); setPoolReturned(new Set()); setDailyPoolDone(false);
     clearCard(); setScreen("study");
+    // Auto-play pro první/aktuální kartu při obnovení session
+    autoPlayForCard(s.rWords[s.rIdx], 600);
   }
-
-  /* ── update word stats across decks (handles folder study) ── */
   function updateWordInDecks(wid, vmUpd, ok) {
     setDecks(ds => ds.map(d => {
       const hasWord = d.words.some(w => w.id === wid);
@@ -338,15 +309,13 @@ export default function LexiCard() {
     setFB(null); setTx(""); setMicErr(""); setTyped(""); setPronAtt(0); setWrongCountdown(0); setEvalLoading(false); setFlipped(false); setFlipFlash(null);
     const nxt = rIdx + 1;
 
-    // Check if daily pool just finished (current card was last pool card)
-    // Pool tracking: kolo skončilo (nxt >= rWords.length)
-    // Logika daily done / next round se řeší v finishRound
-
     if (nxt >= rWords.length) {
       finishRound();
     } else {
       setRIdx(nxt);
       saveSession(rWords, nxt, rStats, combo, deckId, mode, translDir, flipDir, studyFolderId);
+      // Auto-play nové karty (pron nepřehrává při zobrazení)
+      autoPlayForCard(rWords[nxt]);
     }
   }
 
@@ -357,27 +326,29 @@ export default function LexiCard() {
     }));
     const roundBonus = 50;
     const totalXp = rStats.xp + roundBonus;
+
+    // Vypočítej výsledná data synchronně (bez vnořených setState callbacků)
+    // aby roundEndData bylo vždy nastaveno před přechodem na roundEnd screen.
+    let endData = null;
     setGameStats(prev => {
       const updated = checkStreak(prev);
       const oldLvl = getLevel(updated.xp ?? 0).level;
       const newXp = (updated.xp ?? 0) + totalXp;
       const newLvl = getLevel(newXp).level;
-      const result = { ...updated, xp: newXp };
-      setRoundEndData({ xpEarned: totalXp, newLevel: newLvl > oldLvl ? newLvl : null, streak: result.dailyStreak });
-      return result;
+      endData = { xpEarned: totalXp, newLevel: newLvl > oldLvl ? newLvl : null, streak: updated.dailyStreak };
+      return { ...updated, xp: newXp };
     });
+
+    // Nastav roundEndData ihned — nezávisle na setGameStats callbacku
+    setRoundEndData({ xpEarned: totalXp, newLevel: null, streak: 0, ...(endData ?? {}) });
     clearSession();
 
-    // Po skončení kola: je co pokračovat?
     setPoolUnseen(prev => {
       if (prev === null) { setScreen("roundEnd"); return prev; }
-      const nextUnseen = prev; // aktuální stav unseen (po odebrání kola na startu)
-      // poolReturned = slova vrácená za toto kolo (špatně/tuším)
       setPoolReturned(returned => {
-        const hasUnseen = nextUnseen.size > 0;
+        const hasUnseen = prev.size > 0;
         const hasReturned = returned.size > 0;
         if (!hasUnseen && !hasReturned) {
-          // Denní pool vyčerpán
           setDailyPoolDone(true);
           setScreen("dailyDone");
         } else {
@@ -439,6 +410,8 @@ export default function LexiCard() {
           setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
           saveSession(roundWords, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
           setScreen("study");
+          // Auto-play první karty nového kola
+          autoPlayForCard(roundWords[0], 600);
         }, 0);
 
         return newReturned;
@@ -471,9 +444,8 @@ export default function LexiCard() {
     setRWords(words); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
     saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
     setScreen("study");
+    autoPlayForCard(words[0], 600);
   }
-
-  /* ── mic ── */
   async function startListen(lang) {
     setMicErr("");
     if (micSt !== "ready") {
@@ -492,17 +464,41 @@ export default function LexiCard() {
   function stopListen() { recRef.current?.stop(); setListen(false); }
 
   /* ── speak ── */
-  // speakWord: vždy přehraje něco — nejdřív pokusí API audio (jen pro angličtinu),
-  // při selhání nebo pro češtinu automaticky fallback na synth.
+  // Vždy přes SpeechSynthesis — žádná závislost na API audio.
   function speakWord(text, lang) {
     if (!text) return;
-    if (lang === "en-US" && dictEntry?.audio) {
-      // Anglické slovo + máme audio URL → playAudio s fallbackem na synth
-      speakWithFallback(synthRef.current, dictEntry.audio, text, lang);
-    } else {
-      // Česky nebo bez audio → přímo synth
-      doSpeak(synthRef.current, text, lang);
+    doSpeak(synthRef.current, text, lang);
+  }
+
+  // Přehraje slovo při zobrazení nové karty dle pravidel auto-play.
+  // Voláno explicitně: při přechodu na novou kartu a po flip otočení.
+  //
+  // Pravidla:
+  //   transl EN→CZ : přehraj EN při zobrazení
+  //   transl CZ→EN : nepřehrávej při zobrazení
+  //   pron         : nepřehrávej při zobrazení (až od 2. pokusu)
+  //   flip EN→CZ   : přehraj EN při zobrazení přední strany
+  //   flip CZ→EN   : nepřehrávej při zobrazení přední strany
+  //
+  // delay: ms před přehráním (default 400)
+  function autoPlayForCard(w, delay = 400) {
+    if (!autoPlay || !w) return null;
+    if (mode === "transl") {
+      if (translDir === "en-cs") {
+        return setTimeout(() => speakWord(w.en, "en-US"), delay);
+      }
+      // CZ→EN: nepřehrávej
+      return null;
     }
+    if (mode === "flip") {
+      if (flipDir === "en-cs") {
+        return setTimeout(() => speakWord(w.en, "en-US"), delay);
+      }
+      // CZ→EN: nepřehrávej
+      return null;
+    }
+    // pron: nepřehrávej při zobrazení
+    return null;
   }
 
   /* ── flip answer ── */
@@ -518,9 +514,18 @@ export default function LexiCard() {
     setRStats(s => ({ ...s, ok: s.ok + (ok ? 1 : 0), bad: s.bad + (ok ? 0 : 1), xp: s.xp + xpGain }));
     setFlipFlash(quality === 0 ? "bad" : quality === 3 ? "warn" : "ok");
 
-    // Pool: špatně (q=0) nebo tuším (q=3) → vrátit do poolReturned (do příštího kola)
+    // Pool: špatně (q=0) nebo tuším (q=3) → vrátit do poolReturned
     if (poolUnseen !== null && (quality === 0 || quality === 3)) {
       setPoolReturned(prev => { const next = new Set(prev); next.add(w.id); return next; });
+    }
+
+    // Auto-play: špatně nebo tuším → přehraj odpověď (odvrácená strana)
+    // flip EN→CZ špatně/tuším → přehraj CZ
+    // flip CZ→EN špatně/tuším → přehraj EN
+    if (!ok && autoPlay) {
+      const ans  = flipDir === "en-cs" ? (parseSyn(w.cs)[0] || w.cs) : w.en;
+      const lang = flipDir === "en-cs" ? "cs-CZ" : "en-US";
+      setTimeout(() => speakWord(ans, lang), 150);
     }
 
     setTimeout(() => { setFlipFlash(null); setFlipped(false); nextCard(); }, 420);
@@ -533,8 +538,18 @@ export default function LexiCard() {
       const ok = localMatch(text, w.en);
       if (ok) { commitAnswer(w, 5, text); return; }
       const att = pronAtt + 1;
-      if (att >= 3) { commitAnswer(w, 0, text, true); }
-      else { setPronAtt(att); setTx(""); setTimeout(() => speakWord(w.en, "en-US"), 300); }
+      if (att >= 3) {
+        // 3. špatná → konec, přehraj slovo a commituj
+        speakWord(w.en, "en-US");
+        commitAnswer(w, 0, text, true);
+      } else {
+        setPronAtt(att);
+        setTx("");
+        // Od 2. pokusu (att >= 1) přehraj slovo jako nápovědu
+        if (att >= 1) {
+          setTimeout(() => speakWord(w.en, "en-US"), 300);
+        }
+      }
       return;
     }
     const ef = mode === "transl"
@@ -560,15 +575,31 @@ export default function LexiCard() {
     if (poolUnseen !== null && !ok) {
       setPoolReturned(prev => { const next = new Set(prev); next.add(w.id); return next; });
     }
+
+    // Auto-play správné odpovědi při špatné/nevím (transl + flip):
+    // transl EN→CZ špatně → přehraj CZ
+    // transl CZ→EN špatně → přehraj EN
+    // flip EN→CZ špatně/tuším → přehraj CZ (řeší flipAnswer)
+    // flip CZ→EN špatně/tuším → přehraj EN (řeší flipAnswer)
+    // pron: přehrávání řeší evalAnswer přímo
+    if (!ok && autoPlay && mode === "transl") {
+      const ans  = translDir === "en-cs" ? w.cs : w.en;
+      const lang = translDir === "en-cs" ? "cs-CZ" : "en-US";
+      setTimeout(() => speakWord(ans, lang), 300);
+    }
   }
 
   function submitTyped()  { if (typed.trim()) evalAnswer(typed.trim()); }
-  function dontKnow()     {
+
+  function dontKnow() {
     const w = rWords[rIdx]; if (!w || feedback) return;
-    const ans = translDir === "en-cs" ? w.cs : w.en;
-    const lang = translDir === "en-cs" ? "cs-CZ" : "en-US";
     commitAnswer(w, 0, "");
-    speakWord(ans, lang);
+    // Pokud je autoPlay vypnutý, commitAnswer nepřehraje → přehraj explicitně
+    if (!autoPlay && mode === "transl") {
+      const ans  = translDir === "en-cs" ? w.cs : w.en;
+      const lang = translDir === "en-cs" ? "cs-CZ" : "en-US";
+      setTimeout(() => speakWord(ans, lang), 300);
+    }
   }
 
   /* ── loading spinner ── */
@@ -658,14 +689,13 @@ export default function LexiCard() {
         if (autoPlay) {
           const w = rWords[rIdx];
           if (!w) return;
-          if (flipDir === "cs-en") {
-            // Otočili jsme na EN (back side) → přehraj anglicky
-            setTimeout(() => speakWord(w.en, "en-US"), 200);
-          } else {
-            // flipDir === "en-cs": otočili jsme na CS (back side) → přehraj česky
+          if (flipDir === "en-cs") {
+            // Otočili jsme na CS (back side) → přehraj česky
             const csWord = parseSyn(w.cs)[0] || w.cs;
-            setTimeout(() => doSpeak(synthRef.current, csWord, "cs-CZ"), 200);
+            setTimeout(() => speakWord(csWord, "cs-CZ"), 200);
           }
+          // flipDir === "cs-en": otočili jsme na EN (back side) → nepřehrávej
+          // (přehráváme jen při špatné/tuším odpovědi ve flipAnswer)
         }
       }}
       onFlipAnswer={flipAnswer}
@@ -676,6 +706,7 @@ export default function LexiCard() {
       onNextCard={nextCard}
       onBack={() => setScreen(studyFolderId ? "home" : "deck")}
       onSpeak={speakWord}
+      onEditWord={editWordInDecks}
     />
   );
 }

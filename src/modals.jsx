@@ -559,3 +559,81 @@ export function FolderStatsModal({ folder, decks, onClose }) {
     </Modal>
   );
 }
+
+/* ─── Edit Word Modal (study screen) ────────────────────────── */
+// Na mobilu (šířka < 600px) zobrazí pouze EN + CS pole.
+// Na desktopu přidá synonyma a příkladovou větu.
+export function EditWordModal({ word, onClose, onSave }) {
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 600;
+  const [f, setF] = useState({
+    en:       word.en       ?? "",
+    cs:       word.cs       ?? "",
+    synonyms: word.synonyms ?? "",
+    example:  word.example  ?? "",
+  });
+  const upd = k => e => setF(p => ({ ...p, [k]: e.target.value }));
+
+  function submit() {
+    if (!f.en.trim() || !f.cs.trim()) return;
+    onSave({
+      en:       f.en.trim(),
+      cs:       f.cs.trim(),
+      synonyms: f.synonyms.trim(),
+      example:  f.example.trim(),
+    });
+    onClose();
+  }
+
+  const labelStyle = { fontSize: 12, color: C.muted, marginBottom: 4 };
+  const valid = f.en.trim() && f.cs.trim();
+
+  return (
+    <Modal onClose={onClose}>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: 3 }}>Upravit slovíčko</div>
+        <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>
+          {word.en} → {parseSyn(word.cs)[0] || word.cs}
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div>
+          <div style={labelStyle}>🇬🇧 Anglicky *</div>
+          <input className="inp-sm" value={f.en} onChange={upd("en")} autoFocus
+            onKeyDown={e => e.key === "Enter" && document.getElementById("ew-cs")?.focus()} />
+        </div>
+        <div>
+          <div style={labelStyle}>🇨🇿 Česky * <span style={{ fontSize: 11, color: C.mutedDark }}>(nebo: slov1 / slov2)</span></div>
+          <input id="ew-cs" className="inp-sm" value={f.cs} onChange={upd("cs")}
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                if (!isMobile) document.getElementById("ew-syn")?.focus();
+                else if (valid) submit();
+              }
+            }} />
+        </div>
+        {!isMobile && (<>
+          <div>
+            <div style={labelStyle}>🔄 Synonyma <span style={{ fontSize: 11, color: C.mutedDark }}>(volitelné)</span></div>
+            <input id="ew-syn" className="inp-sm" value={f.synonyms} onChange={upd("synonyms")}
+              onKeyDown={e => e.key === "Enter" && document.getElementById("ew-ex")?.focus()} />
+          </div>
+          <div>
+            <div style={labelStyle}>💡 Příkladová věta</div>
+            <input id="ew-ex" className="inp-sm" value={f.example} onChange={upd("example")}
+              onKeyDown={e => e.key === "Enter" && submit()} />
+          </div>
+        </>)}
+        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+          <button className="btn" onClick={onClose}
+            style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>
+            Zrušit
+          </button>
+          <button className="btn" onClick={submit}
+            style={{ flex: 2, background: valid ? C.gold : "var(--lc-xpTrack)", color: valid ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all .2s" }}>
+            Uložit
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
