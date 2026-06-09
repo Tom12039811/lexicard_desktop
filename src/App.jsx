@@ -306,6 +306,7 @@ export default function LexiCard() {
 
   function nextCard() {
     clearTimeout(timerRef.current); clearInterval(intervalRef.current);
+    synthRef.current?.cancel();
     setFB(null); setTx(""); setMicErr(""); setTyped(""); setPronAtt(0); setWrongCountdown(0); setEvalLoading(false); setFlipped(false); setFlipFlash(null);
     const nxt = rIdx + 1;
 
@@ -514,15 +515,18 @@ export default function LexiCard() {
     setRStats(s => ({ ...s, ok: s.ok + (ok ? 1 : 0), bad: s.bad + (ok ? 0 : 1), xp: s.xp + xpGain }));
     setFlipFlash(quality === 0 ? "bad" : quality === 3 ? "warn" : "ok");
 
-    // Pool: špatně (q=0) nebo tuším (q=3) → vrátit do poolReturned
     if (poolUnseen !== null && (quality === 0 || quality === 3)) {
       setPoolReturned(prev => { const next = new Set(prev); next.add(w.id); return next; });
     }
 
-    // Auto-play: špatně nebo tuším → přehraj odpověď (odvrácená strana)
-    // flip EN→CZ špatně/tuším → přehraj CZ
-    // flip CZ→EN špatně/tuším → přehraj EN
-    if (!ok && autoPlay) {
+    // Zruš případné probíhající přehrávání před odpovědí
+    synthRef.current?.cancel();
+
+    // Auto-play při odpovědi:
+    // flip EN→CZ: přehraj CZ pouze při neznám (q=0)
+    // flip CZ→EN: přehraj EN pouze při neznám (q=0)
+    // tuším (q=3) ani správně (q=5) → nepřehrávej
+    if (autoPlay && quality === 0) {
       const ans  = flipDir === "en-cs" ? (parseSyn(w.cs)[0] || w.cs) : w.en;
       const lang = flipDir === "en-cs" ? "cs-CZ" : "en-US";
       setTimeout(() => speakWord(ans, lang), 150);
@@ -534,6 +538,8 @@ export default function LexiCard() {
   /* ── text/mic answer ── */
   async function evalAnswer(text) {
     const w = rWords[rIdx]; if (!w || feedback) return;
+    // Zruš případné probíhající přehrávání
+    synthRef.current?.cancel();
     if (mode === "pron") {
       const ok = localMatch(text, w.en);
       if (ok) { commitAnswer(w, 5, text); return; }
@@ -593,6 +599,8 @@ export default function LexiCard() {
 
   function dontKnow() {
     const w = rWords[rIdx]; if (!w || feedback) return;
+    // Zruš případné probíhající přehrávání
+    synthRef.current?.cancel();
     commitAnswer(w, 0, "");
     // Pokud je autoPlay vypnutý, commitAnswer nepřehraje → přehraj explicitně
     if (!autoPlay && mode === "transl") {
@@ -685,17 +693,17 @@ export default function LexiCard() {
       onSetAutoPlay={setAutoPlay}
       onSetPlaySounds={v => { setPlaySounds(v); try { localStorage.setItem("lc6_playSounds", String(v)); } catch {} }}
       onFlip={() => {
+        // Zruš případné probíhající přehrávání před otočením
+        synthRef.current?.cancel();
         setFlipped(true);
         if (autoPlay) {
           const w = rWords[rIdx];
           if (!w) return;
-          if (flipDir === "en-cs") {
-            // Otočili jsme na CS (back side) → přehraj česky
-            const csWord = parseSyn(w.cs)[0] || w.cs;
-            setTimeout(() => speakWord(csWord, "cs-CZ"), 200);
+          if (flipDir === "cs-en") {
+            // Otočili jsme na EN (back side) → přehraj EN vždy
+            setTimeout(() => speakWord(w.en, "en-US"), 200);
           }
-          // flipDir === "cs-en": otočili jsme na EN (back side) → nepřehrávej
-          // (přehráváme jen při špatné/tuším odpovědi ve flipAnswer)
+          // flipDir === "en-cs": otočení na CS → nepřehrávej
         }
       }}
       onFlipAnswer={flipAnswer}
