@@ -637,3 +637,56 @@ export function EditWordModal({ word, onClose, onSave }) {
     </Modal>
   );
 }
+
+/* ─── English Voice Warning Modal ───────────────────────────── */
+// Zobrazí se jednorázově pokud zařízení nemá nainstalovaný anglický hlas.
+// Detekuje platformu a zobrazí příslušný návod (Android / iOS / ostatní).
+export function EnVoiceWarningModal({ onClose }) {
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const isIos     = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+
+  const steps = isIos ? [
+    "Otevři Nastavení telefonu",
+    "Přejdi na Zpřístupnění → Mluvený obsah",
+    "Klepni na Hlasy → English",
+    "Vyber libovolný hlas a stáhni ho",
+    "Znovu otevři tuto aplikaci",
+  ] : isAndroid ? [
+    "Otevři Nastavení telefonu",
+    "Přejdi na Správa obecných nastavení → Jazyk a zadávání",
+    "Klepni na Převod textu na řeč",
+    "U preferovaného enginu klepni na ozubené kolo ⚙️",
+    "Zvolte Instalovat hlasová data → English",
+    "Stáhni libovolný anglický hlas",
+    "Znovu otevři tuto aplikaci",
+  ] : [
+    "V nastavení systému vyhledej „Převod textu na řeč" nebo „Text to Speech"",
+    "Nainstaluj anglický hlas (English / en-US)",
+    "Znovu otevři tuto aplikaci",
+  ];
+
+  return (
+    <Modal onClose={onClose}>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 32, textAlign: "center", marginBottom: 8 }}>🔊</div>
+        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 19, fontWeight: 700, color: C.gold, marginBottom: 6, textAlign: "center" }}>
+          Chybí anglický hlas
+        </div>
+        <div style={{ fontSize: 13, color: C.muted, textAlign: "center", lineHeight: 1.5, marginBottom: 14 }}>
+          Na tomto zařízení není nainstalovaný anglický hlas. Anglická slovíčka budou čtena výchozím hlasem telefonu.
+          Pro správnou anglickou výslovnost postupuj takto:
+        </div>
+        <ol style={{ paddingLeft: 20, margin: 0, display: "flex", flexDirection: "column", gap: 7 }}>
+          {steps.map((s, i) => (
+            <li key={i} style={{ fontSize: 13, color: "#c8d0e0", lineHeight: 1.45 }}>{s}</li>
+          ))}
+        </ol>
+      </div>
+      <button className="btn" onClick={onClose}
+        style={{ width: "100%", background: C.gold, color: C.bg, border: "none", borderRadius: 9, padding: "11px", fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 6 }}>
+        Rozumím
+      </button>
+    </Modal>
+  );
+}

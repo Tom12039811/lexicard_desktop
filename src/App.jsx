@@ -10,7 +10,7 @@ import {
 import HomeScreen from "./HomeScreen.jsx";
 import DeckScreen from "./DeckScreen.jsx";
 import StudyScreen, { RoundEnd, DailyDoneScreen } from "./StudyScreen.jsx";
-import { OnboardingModal } from "./modals.jsx";
+import { OnboardingModal, EnVoiceWarningModal } from "./modals.jsx";
 
 /* ── helpers ── */
 function buildDailyPool(words) {
@@ -46,6 +46,7 @@ export default function LexiCard() {
   const [activeLang, setLang]         = useState("en");
   const [loaded, setLoaded]           = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showEnVoiceWarning, setShowEnVoiceWarning] = useState(false);
   const [gameStats, setGameStats]     = useState({ xp: 0, dailyStreak: 0, lastStudyDate: null });
 
   /* ── folder study ── */
@@ -106,6 +107,28 @@ export default function LexiCard() {
       }
     } catch {}
     setLoaded(true);
+
+    // Zkontroluj dostupnost anglického hlasu — jednorázově
+    const alreadyWarned = localStorage.getItem("lc6_enVoiceWarned") === "1";
+    if (!alreadyWarned && window.speechSynthesis) {
+      const check = () => {
+        const voices = window.speechSynthesis.getVoices();
+        if (!voices.length) return; // ještě nenačteno
+        const hasEn = voices.some(v => v.lang.toLowerCase().startsWith("en"));
+        if (!hasEn) setShowEnVoiceWarning(true);
+      };
+      // Hlasy mohou být dostupné až asynchronně
+      if (window.speechSynthesis.getVoices().length > 0) {
+        check();
+      } else {
+        window.speechSynthesis.onvoiceschanged = () => {
+          window.speechSynthesis.onvoiceschanged = null;
+          check();
+        };
+        // Fallback pokud onvoiceschanged nikdy nepřijde
+        setTimeout(check, 1000);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -627,6 +650,12 @@ export default function LexiCard() {
           onUpload={f => { loadFile(f); setShowOnboarding(false); }}
           onClose={() => setShowOnboarding(false)}
         />
+      )}
+      {showEnVoiceWarning && (
+        <EnVoiceWarningModal onClose={() => {
+          setShowEnVoiceWarning(false);
+          try { localStorage.setItem("lc6_enVoiceWarned", "1"); } catch {}
+        }} />
       )}
       <HomeScreen
         decks={decks} langs={langs} activeLang={activeLang} gameStats={gameStats} folders={folders}

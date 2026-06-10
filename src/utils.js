@@ -72,6 +72,24 @@ if (typeof document !== "undefined") {
 export function doSpeak(synth, text, lang) {
   if (!synth || !text) return;
 
+  // Najde nejlepší dostupný hlas pro daný jazyk.
+  // Priorita: přesná shoda (en-US) → jazyková shoda (en) → výchozí hlas.
+  // Bez explicitního hlasu Android/iOS někdy použije výchozí hlas (např. cs-CZ)
+  // i pro lang="en-US", což způsobí anglická slova čtená česky.
+  function pickVoice(lang) {
+    const voices = synth.getVoices();
+    if (!voices.length) return null;
+    const langBase = lang.split("-")[0].toLowerCase();
+    // 1) přesná shoda lang tagu (case-insensitive)
+    let v = voices.find(v => v.lang.toLowerCase() === lang.toLowerCase());
+    if (v) return v;
+    // 2) shoda na jazykovém prefixu (en, cs, ...)
+    v = voices.find(v => v.lang.toLowerCase().startsWith(langBase));
+    if (v) return v;
+    // 3) žádný vhodný hlas nenalezen → null (systém zvolí sám)
+    return null;
+  }
+
   const _speak = () => {
     try {
       if (synth.paused) synth.resume();
@@ -80,16 +98,21 @@ export function doSpeak(synth, text, lang) {
       u.rate   = 0.9;
       u.volume = 1.0;
 
+      // Hlasy mohou být dostupné až asynchronně (zejména na Androidu) →
+      // zkusíme ihned, a pokud seznam prázdný, počkáme na onvoiceschanged
+      const voice = pickVoice(lang);
+      if (voice) u.voice = voice;
+
       let done = false;
       u.onend = () => { done = true; };
       u.onerror = () => {
         if (done) return;
         done = true;
-        // Jeden retry po chybě
         setTimeout(() => {
           try {
             const u2 = new SpeechSynthesisUtterance(text);
             u2.lang = lang; u2.rate = 0.9; u2.volume = 1.0;
+            const v2 = pickVoice(lang); if (v2) u2.voice = v2;
             synth.speak(u2);
           } catch {}
         }, 150);
@@ -97,18 +120,31 @@ export function doSpeak(synth, text, lang) {
 
       synth.speak(u);
 
-      // Watchdog: pokud po 5s synth stále mluví bez onend → zamrz → reset
       setTimeout(() => {
-        if (!done && synth.speaking) {
-          synth.cancel();
-        }
+        if (!done && synth.speaking) synth.cancel();
       }, 5000);
     } catch {}
   };
 
+  // Pokud hlasy ještě nejsou načteny (prázdný seznam), počkej na onvoiceschanged
+  if (synth.getVoices().length === 0) {
+    const handler = () => {
+      synth.onvoiceschanged = null;
+      if (synth.speaking || synth.pending) {
+        synth.cancel();
+        setTimeout(_speak, 80);
+      } else {
+        _speak();
+      }
+    };
+    synth.onvoiceschanged = handler;
+    // Timeout fallback: pokud onvoiceschanged nikdy nepřijde (některé prohlížeče)
+    setTimeout(() => { if (synth.onvoiceschanged === handler) { synth.onvoiceschanged = null; _speak(); } }, 500);
+    return;
+  }
+
   if (synth.speaking || synth.pending) {
     synth.cancel();
-    // iOS potřebuje pauzu po cancel(), jinak speak() tiše selže
     setTimeout(_speak, 80);
   } else {
     _speak();
