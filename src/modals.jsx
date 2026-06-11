@@ -661,7 +661,7 @@ export function EnVoiceWarningModal({ onClose }) {
     "Stáhni libovolný anglický hlas",
     "Znovu otevři tuto aplikaci",
   ] : [
-    "V nastavení systému vyhledej „Převod textu na řeč" nebo „Text to Speech"",
+   `V nastavení systému vyhledej „Převod textu na řeč" nebo „Text to Speech"`,
     "Nainstaluj anglický hlas (English / en-US)",
     "Znovu otevři tuto aplikaci",
   ];
