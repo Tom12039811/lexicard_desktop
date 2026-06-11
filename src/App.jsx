@@ -11,6 +11,11 @@ import HomeScreen from "./HomeScreen.jsx";
 import DeckScreen from "./DeckScreen.jsx";
 import StudyScreen, { RoundEnd, DailyDoneScreen } from "./StudyScreen.jsx";
 import { OnboardingModal, EnVoiceWarningModal } from "./modals.jsx";
+import AuthScreen from "./AuthScreen.jsx";
+import { supabase } from "./supabase.js";
+import { runSync, syncProfile } from "./sync.js";
+import LibraryScreen from "./LibraryScreen.jsx";
+import LeaderboardScreen from "./LeaderboardScreen.jsx";
 
 /* ── helpers ── */
 function buildDailyPool(words) {
@@ -20,6 +25,19 @@ function buildDailyPool(words) {
 }
 
 export default function LexiCard() {
+  /* ── auth session ── */
+  const [session, setSession] = useState(undefined); // undefined = loading, null = not logged in
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session ?? null);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session ?? null);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
   /* ── light mode ── */
   const [lightMode, setLightMode] = useState(() => localStorage.getItem("lc_lightMode") === "1");
 
@@ -90,6 +108,50 @@ export default function LexiCard() {
   const synthRef    = useRef(window.speechSynthesis);
   const timerRef    = useRef(null);
   const intervalRef = useRef(null);
+
+  /* ── sync stav ── */
+  const [syncStatus, setSyncStatus] = useState(null);
+
+  async function triggerSync(currentSession, currentDecks, currentGameStats) {
+    const userId   = currentSession?.user?.id;
+    const username = currentSession?.user?.user_metadata?.username;
+    if (!userId) return;
+
+    // Zajisti profil v DB (potřeba pro žebříček)
+    if (username) syncProfile(userId, username);
+
+    const result = await runSync(
+      { decks: currentDecks, gameStats: currentGameStats },
+      userId,
+      setSyncStatus
+    );
+    if (result) {
+      setDecks(result.decks);
+      setGameStats(result.gameStats);
+    }
+  }
+
+  /* Sync po přihlášení */
+  const prevSessionRef = useRef(undefined);
+  useEffect(() => {
+    const wasNull = prevSessionRef.current === null || prevSessionRef.current === undefined;
+    const isLoggedIn = session != null;
+    prevSessionRef.current = session;
+    if (wasNull && isLoggedIn && loaded) {
+      triggerSync(session, decks, gameStats);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, loaded]);
+
+  /* Sync při obnovení připojení */
+  useEffect(() => {
+    function handleOnline() {
+      if (session?.user?.id) triggerSync(session, decks, gameStats);
+    }
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, decks, gameStats]);
 
   /* ── localStorage load ── */
   useEffect(() => {
@@ -182,7 +244,7 @@ export default function LexiCard() {
           wStats: { total: 0, correct: 0, wrong: 0 },
         }));
         if (!words.length) { alert("Žádná slovíčka nenalezena."); return; }
-        const d = { id: uid(), name, lang: activeLang, words, createdAt: now(), deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 } };
+        const d = { id: uid(), name, lang: activeLang, words: words.map(w => ({ ...w, updatedAt: new Date().toISOString() })), createdAt: now(), updatedAt: new Date().toISOString(), deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 } };
         setDecks(ds => [...ds, d]); setDeckId(d.id); setScreen("deck");
       } catch { alert("Nepodařilo se načíst soubor."); }
     };
@@ -190,27 +252,35 @@ export default function LexiCard() {
   }
 
   function loadSampleDeck() {
-    const words = SAMPLE_WORDS.map(w => ({ id: uid(), ...w, synonyms: "", score: 0, addedAt: now(), vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 } }));
-    const d = { id: uid(), name: "Ukázkový balíček", lang: activeLang, words, createdAt: now(), deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 } };
+    const words = SAMPLE_WORDS.map(w => ({ id: uid(), ...w, synonyms: "", score: 0, addedAt: now(), vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 }, updatedAt: new Date().toISOString() }));
+    const d = { id: uid(), name: "Ukázkový balíček", lang: activeLang, words, createdAt: now(), updatedAt: new Date().toISOString(), deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 } };
     setDecks(ds => [...ds, d]); setDeckId(d.id); setScreen("deck");
   }
 
   /* ── deck ops ── */
-  const updWord   = (wid, field, val) => setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, words: d.words.map(w => w.id !== wid ? w : { ...w, [field]: val }) }));
+  const updWord   = (wid, field, val) => setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), words: d.words.map(w => w.id !== wid ? w : { ...w, [field]: val, updatedAt: new Date().toISOString() }) }));
   function addWord({ en, cs, example, synonyms }) {
-    setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, words: [...d.words, { id: uid(), en, cs, example, synonyms: synonyms || "", score: 0, addedAt: now(), vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 } }] }));
+    setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), words: [...d.words, { id: uid(), en, cs, example, synonyms: synonyms || "", score: 0, addedAt: now(), vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 }, updatedAt: new Date().toISOString() }] }));
   }
-  const delWord   = wid  => setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, words: d.words.filter(w => w.id !== wid) }));
+  const delWord   = wid  => setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), words: d.words.filter(w => w.id !== wid) }));
   function editWordInDecks(wid, data) {
     // Funguje i pro folder study — prohledá všechny balíčky
     setDecks(ds => ds.map(d => ({
       ...d,
-      words: d.words.map(w => w.id !== wid ? w : { ...w, ...data }),
+      updatedAt: d.words.some(w => w.id === wid) ? new Date().toISOString() : d.updatedAt,
+      words: d.words.map(w => w.id !== wid ? w : { ...w, ...data, updatedAt: new Date().toISOString() }),
     })));
   }
   function delDeck()        { setDecks(ds => ds.filter(d => d.id !== deckId)); setScreen("home"); }
-  function renameDeck(name) { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, name })); }
-  function resetStats()     { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 }, words: d.words.map(w => ({ ...w, score: 0, vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 } })) })); }
+  function renameDeck(name) { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, name, updatedAt: new Date().toISOString() })); }
+
+  /* ── library download ── */
+  function downloadFromLibrary(newDeck) {
+    setDecks(ds => [...ds, newDeck]);
+    setDeckId(newDeck.id);
+    setScreen("deck");
+  }
+  function resetStats()     { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 }, words: d.words.map(w => ({ ...w, score: 0, vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 }, updatedAt: new Date().toISOString() })) })); }
   function addLang(l)       { setLangs(ls => [...ls, l]); setLang(l.id); }
   function editLang(u)      { setLangs(ls => ls.map(l => l.id === u.id ? u : l)); }
   function deleteLang(id)   { setDecks(ds => ds.filter(d => d.lang !== id)); setFolders(fs => fs.filter(f => f.lang !== id)); setLangs(ls => ls.filter(l => l.id !== id)); if (activeLang === id) { const rem = langs.filter(l => l.id !== id); if (rem.length) setLang(rem[0].id); } }
@@ -316,10 +386,12 @@ export default function LexiCard() {
       if (!hasWord) return d;
       return {
         ...d,
+        updatedAt: new Date().toISOString(),
         words: d.words.map(dw => dw.id !== wid ? dw : {
           ...dw, ...vmUpd,
           score: ok ? (dw.score ?? 0) + 1 : Math.max(0, (dw.score ?? 0) - 1),
-          wStats: { total: (dw.wStats?.total ?? 0) + 1, correct: (dw.wStats?.correct ?? 0) + (ok ? 1 : 0), wrong: (dw.wStats?.wrong ?? 0) + (ok ? 0 : 1) }
+          wStats: { total: (dw.wStats?.total ?? 0) + 1, correct: (dw.wStats?.correct ?? 0) + (ok ? 1 : 0), wrong: (dw.wStats?.wrong ?? 0) + (ok ? 0 : 1) },
+          updatedAt: new Date().toISOString(),
         }),
         deckStats: { totalAnswers: (d.deckStats?.totalAnswers ?? 0) + 1, correctAnswers: (d.deckStats?.correctAnswers ?? 0) + (ok ? 1 : 0), roundsCompleted: d.deckStats?.roundsCompleted ?? 0 },
       };
@@ -360,7 +432,7 @@ export default function LexiCard() {
       const newXp = (updated.xp ?? 0) + totalXp;
       const newLvl = getLevel(newXp).level;
       endData = { xpEarned: totalXp, newLevel: newLvl > oldLvl ? newLvl : null, streak: updated.dailyStreak };
-      return { ...updated, xp: newXp };
+      return { ...updated, xp: newXp, updatedAt: new Date().toISOString() };
     });
 
     // Nastav roundEndData ihned — nezávisle na setGameStats callbacku
@@ -641,6 +713,27 @@ export default function LexiCard() {
     </div>
   );
 
+  /* ── auth guard ── */
+  if (session === undefined) return (
+    <div style={{ minHeight: "100dvh", background: "var(--lc-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ color: "var(--lc-textDim)", fontSize: 14 }}>Načítám…</div>
+    </div>
+  );
+  if (session === null) return <AuthScreen />;
+
+  /* ── sync status banner ── */
+  const SyncBanner = syncStatus ? (
+    <div style={{
+      position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)",
+      background: "var(--lc-surface)", border: "1px solid var(--lc-border)",
+      borderRadius: 10, padding: "8px 18px", fontSize: 13,
+      color: "var(--lc-textDim)", zIndex: 9999, pointerEvents: "none",
+      boxShadow: "0 2px 12px rgba(0,0,0,.15)"
+    }}>
+      ⟳ {syncStatus}
+    </div>
+  ) : null;
+
   /* ── routing ── */
   if (screen === "home") return (
     <>
@@ -664,8 +757,30 @@ export default function LexiCard() {
         onFileUpload={loadFile} onSampleDeck={loadSampleDeck}
         onAddFolder={addFolder} onRenameFolder={renameFolder} onDeleteFolder={deleteFolder} onMoveDeck={moveDeck}
         onFolderStudy={startFolderStudy}
+        onLogout={() => supabase.auth.signOut()}
+        userEmail={session?.user?.email}
+        onLibrary={() => setScreen("library")}
+        onLeaderboard={() => setScreen("leaderboard")}
       />
+      {SyncBanner}
     </>
+  );
+
+  if (screen === "library") return (
+    <LibraryScreen
+      activeLang={activeLang}
+      lightMode={lightMode}
+      onBack={() => setScreen("home")}
+      onDownload={downloadFromLibrary}
+    />
+  );
+
+  if (screen === "leaderboard") return (
+    <LeaderboardScreen
+      currentUserId={session?.user?.id}
+      lightMode={lightMode}
+      onBack={() => setScreen("home")}
+    />
   );
 
   if (screen === "deck" && deck) {

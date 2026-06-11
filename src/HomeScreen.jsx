@@ -8,7 +8,7 @@ export default function HomeScreen({
   onLangSwitch, onAddLang, onEditLang, onDeleteLang,
   onSelect, onFileUpload, onSampleDeck,
   onAddFolder, onRenameFolder, onDeleteFolder, onMoveDeck,
-  onFolderStudy
+  onFolderStudy, onLogout, userEmail, onLibrary, onLeaderboard
 }) {
   const [sort, setSort] = useState("date-desc");
   const [showUpload, setShowUpload] = useState(false);
@@ -69,7 +69,32 @@ export default function HomeScreen({
           <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 36, fontWeight: 700, color: C.gold, letterSpacing: "-1px" }}>LexiCard</div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 2, fontStyle: "italic" }}>{lc?.label}</div>
         </div>
-        <LangDropdown langs={langs} activeId={activeLang} onSwitch={onLangSwitch} onAddLang={onAddLang} onEditLang={onEditLang} onDeleteLang={onDeleteLang} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <LangDropdown langs={langs} activeId={activeLang} onSwitch={onLangSwitch} onAddLang={onAddLang} onEditLang={onEditLang} onDeleteLang={onDeleteLang} />
+          {onLogout && (
+            <button
+              className="btn"
+              onClick={onLogout}
+              title={userEmail || "Odhlásit se"}
+              style={{
+                padding: "0.4rem 0.7rem",
+                borderRadius: 8,
+                border: `1px solid ${C.border}`,
+                background: C.card,
+                color: C.muted,
+                fontSize: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <span>👤</span>
+              <span style={{ maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {userEmail ? userEmail.split("@")[0] : "Odhlásit"}
+              </span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* XP & streak bar */}
@@ -112,6 +137,24 @@ export default function HomeScreen({
           <span style={{ fontSize: 18 }}>📁</span>
           <span style={{ fontSize: 13, color: C.textDim }}>Nová složka</span>
         </button>
+        {onLibrary && (
+          <button className="btn" onClick={onLibrary}
+            style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--lc-btnAddBg)", border: `1px solid #2a3650`, borderRadius: 14, padding: "11px 14px", cursor: "pointer", transition: "all .2s", whiteSpace: "nowrap" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = "rgba(212,168,83,.04)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--lc-btnAddBorder)"; e.currentTarget.style.background = "var(--lc-btnAddBg)"; }}>
+            <span style={{ fontSize: 18 }}>📚</span>
+            <span style={{ fontSize: 13, color: C.textDim }}>Knihovna</span>
+          </button>
+        )}
+        {onLeaderboard && (
+          <button className="btn" onClick={onLeaderboard}
+            style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--lc-btnAddBg)", border: `1px solid #2a3650`, borderRadius: 14, padding: "11px 14px", cursor: "pointer", transition: "all .2s", whiteSpace: "nowrap" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = "rgba(212,168,83,.04)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--lc-btnAddBorder)"; e.currentTarget.style.background = "var(--lc-btnAddBg)"; }}>
+            <span style={{ fontSize: 18 }}>🏆</span>
+            <span style={{ fontSize: 13, color: C.textDim }}>Žebříček</span>
+          </button>
+        )}
       </div>
 
       {/* sort */}
