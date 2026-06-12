@@ -270,6 +270,8 @@ export default function LexiCard() {
       updatedAt: d.words.some(w => w.id === wid) ? new Date().toISOString() : d.updatedAt,
       words: d.words.map(w => w.id !== wid ? w : { ...w, ...data, updatedAt: new Date().toISOString() }),
     })));
+    // Okamžitá aktualizace karet v probíhajícím kole
+    setRWords(rw => rw.map(w => w.id !== wid ? w : { ...w, ...data, updatedAt: new Date().toISOString() }));
   }
   function delDeck()        { setDecks(ds => ds.filter(d => d.id !== deckId)); setScreen("home"); }
   function renameDeck(name) { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, name, updatedAt: new Date().toISOString() })); }
@@ -759,8 +761,10 @@ export default function LexiCard() {
         onFolderStudy={startFolderStudy}
         onLogout={() => supabase.auth.signOut()}
         userEmail={session?.user?.email}
+        username={session?.user?.user_metadata?.username}
         onLibrary={() => setScreen("library")}
         onLeaderboard={() => setScreen("leaderboard")}
+        lightMode={lightMode} onToggleLight={toggleLight}
       />
       {SyncBanner}
     </>

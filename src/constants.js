@@ -268,12 +268,19 @@ export const STYLE = `
   .stat-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;}
   .word-row{display:grid;grid-template-columns:26px 1fr 1fr 1.5fr 1fr 26px;gap:4px;}
   .word-hdr{display:grid;grid-template-columns:26px 1fr 1fr 1.5fr 1fr 26px;gap:4px;}
+  /* mob-expand: skryto na desktopu, viditelne na mobilu */
+  .mob-expand-panel{display:none;}
+  .mob-has-extra{display:none;}
+  .mob-expand-btn{cursor:default;}
   @media(max-width:640px){
     .stat-grid{grid-template-columns:repeat(3,1fr)!important;}
     .word-row{grid-template-columns:22px 1fr 1fr 22px!important;}
     .word-hdr{grid-template-columns:22px 1fr 1fr 22px!important;}
     .col-ex,.col-syn{display:none!important;}
     .deck-hdr{flex-wrap:wrap;gap:6px!important;}
+    .mob-expand-panel{display:flex!important;}
+    .mob-has-extra{display:flex!important;}
+    .mob-expand-btn{cursor:pointer!important;font-weight:700;}
   }
   ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--lc-scrollTrack)}::-webkit-scrollbar-thumb{background:var(--lc-scrollThumb);border-radius:2px}
 `;
