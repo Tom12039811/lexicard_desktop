@@ -441,21 +441,23 @@ export default function LexiCard() {
     setRoundEndData({ xpEarned: totalXp, newLevel: null, streak: 0, ...(endData ?? {}) });
     clearSession();
 
-    setPoolUnseen(prev => {
-      if (prev === null) { setScreen("roundEnd"); return prev; }
-      setPoolReturned(returned => {
-        const hasUnseen = prev.size > 0;
-        const hasReturned = returned.size > 0;
-        if (!hasUnseen && !hasReturned) {
-          setDailyPoolDone(true);
-          setScreen("dailyDone");
-        } else {
-          setScreen("roundEnd");
-        }
-        return returned;
-      });
-      return prev;
-    });
+    // Rozhodnutí o další obrazovce — čteme aktuální hodnoty poolUnseen/poolReturned
+    // přímo (jsou v tomto renderu vždy aktuální), BEZ vnořování setState do setState.
+    // Vnořený zápis (setPoolUnseen(prev => { ...; setPoolReturned(...); setScreen(...) }))
+    // způsoboval na konci posledního/nedokončeného kola denního poolu pád na bílou
+    // obrazovku — tohle je bezpečná, lineární varianta se stejným výsledkem.
+    if (poolUnseen === null) {
+      setScreen("roundEnd");
+      return;
+    }
+    const hasUnseen = poolUnseen.size > 0;
+    const hasReturned = poolReturned.size > 0;
+    if (!hasUnseen && !hasReturned) {
+      setDailyPoolDone(true);
+      setScreen("dailyDone");
+    } else {
+      setScreen("roundEnd");
+    }
   }
 
   function nextRound() {
@@ -467,56 +469,48 @@ export default function LexiCard() {
     }
     const wordMap = new Map(allWords.map(w => [w.id, w]));
 
-    setPoolUnseen(unseen => {
-      let roundWords;
-      let newUnseen;
-      let newReturned;
+    // Čteme aktuální poolUnseen/poolReturned přímo z closure a počítáme
+    // synchronně — žádné vnořené setState (viz vysvětlení u finishRound()).
+    let roundWords, newUnseen, newReturned;
 
-      setPoolReturned(returned => {
-        if (unseen !== null) {
-          // Máme tracking: priorita = unseen, pak returned
-          const unseenArr = [...unseen].map(id => wordMap.get(id)).filter(Boolean);
-          const returnedArr = [...returned].map(id => wordMap.get(id)).filter(Boolean);
+    if (poolUnseen !== null) {
+      // Máme tracking: priorita = unseen, pak returned
+      const unseenArr = [...poolUnseen].map(id => wordMap.get(id)).filter(Boolean);
+      const returnedArr = [...poolReturned].map(id => wordMap.get(id)).filter(Boolean);
 
-          if (unseenArr.length > 0) {
-            // Kolo z unseen (max 15)
-            roundWords = pickRound(unseenArr);
-            newUnseen = new Set(unseen);
-            roundWords.forEach(w => newUnseen.delete(w.id));
-            newReturned = new Set(returned); // returned se přenáší dál
-          } else if (returnedArr.length > 0) {
-            // Unseen vyčerpány, jedeme vrácená slova
-            roundWords = pickRound(returnedArr);
-            newUnseen = new Set(); // prázdné
-            newReturned = new Set(returned);
-            roundWords.forEach(w => newReturned.delete(w.id)); // odebereme z returned
-          } else {
-            // Nemělo by nastat (finishRound by šel na dailyDone)
-            roundWords = pickRound(allWords);
-            newUnseen = new Set();
-            newReturned = new Set();
-          }
-        } else {
-          // Bez pool trackingu (pokračování po dailyDone)
-          roundWords = pickRound(allWords);
-          newUnseen = null;
-          newReturned = new Set();
-        }
+      if (unseenArr.length > 0) {
+        // Kolo z unseen (max 15)
+        roundWords = pickRound(unseenArr);
+        newUnseen = new Set(poolUnseen);
+        roundWords.forEach(w => newUnseen.delete(w.id));
+        newReturned = new Set(poolReturned); // returned se přenáší dál
+      } else if (returnedArr.length > 0) {
+        // Unseen vyčerpány, jedeme vrácená slova
+        roundWords = pickRound(returnedArr);
+        newUnseen = new Set(); // prázdné
+        newReturned = new Set(poolReturned);
+        roundWords.forEach(w => newReturned.delete(w.id)); // odebereme z returned
+      } else {
+        // Nemělo by nastat (finishRound by šel na dailyDone)
+        roundWords = pickRound(allWords);
+        newUnseen = new Set();
+        newReturned = new Set();
+      }
+    } else {
+      // Bez pool trackingu (pokračování po dailyDone)
+      roundWords = pickRound(allWords);
+      newUnseen = null;
+      newReturned = new Set();
+    }
 
-        setTimeout(() => {
-          setRWords(roundWords);
-          setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
-          saveSession(roundWords, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
-          setScreen("study");
-          // Auto-play první karty nového kola
-          autoPlayForCard(roundWords[0], 600);
-        }, 0);
-
-        return newReturned;
-      });
-
-      return newUnseen;
-    });
+    setPoolUnseen(newUnseen);
+    setPoolReturned(newReturned);
+    setRWords(roundWords);
+    setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
+    saveSession(roundWords, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
+    setScreen("study");
+    // Auto-play první karty nového kola
+    autoPlayForCard(roundWords[0], 600);
   }
 
   /* ── continue after daily done (show remaining non-pool words) ── */

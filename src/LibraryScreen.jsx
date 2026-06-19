@@ -197,7 +197,10 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
     const newDeck = {
       id:          uid(),
       name:        deck.title,
-      lang:        deck.language_pair ?? activeLang ?? "en",
+      // Vždy aktivní jazyk (stejně jako u nahrávání Excelu) — language_pair
+      // z public_decks nemusí přesně odpovídat ID v langs a balíček by pak
+      // v přehledu na hlavní stránce nikdy nešel najít.
+      lang:        activeLang ?? "en",
       folderId:    null,
       words,
       createdAt:   now(),

@@ -161,6 +161,11 @@ export default function DeckScreen({
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
               <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, color: C.gold, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deck.name}</div>
+              {deck.fromLibrary && (
+                <span title="Stazeno z knihovny" style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, color: "#7090c8", background: "var(--lc-statBg1)", border: "1px solid #2e4065", borderRadius: 20, padding: "2px 9px", letterSpacing: .3, whiteSpace: "nowrap" }}>
+                  📚 Knihovna
+                </span>
+              )}
               <button className="btn" onClick={() => setShowRename(true)} style={{ color: C.muted, fontSize: 14, flexShrink: 0, opacity: .7 }} title="Prejmenovat">✏️</button>
             </div>
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
@@ -214,21 +219,23 @@ export default function DeckScreen({
           📊 Stat.
         </button>
 
-        {/* + Slovo — vyraznejsi */}
-        <button className="btn" onClick={() => setShowAdd(true)}
-          style={{
-            border: `1px solid var(--lc-selBorder)`,
-            background: "var(--lc-selBg)",
-            color: C.gold,
-            borderRadius: 8, padding: "5px 13px", fontSize: 12,
-            cursor: "pointer", flexShrink: 0, fontWeight: 600,
-            whiteSpace: "nowrap",
-            transition: "all .2s",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = C.gold; e.currentTarget.style.color = C.bg; e.currentTarget.style.borderColor = C.gold; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "var(--lc-selBg)"; e.currentTarget.style.color = C.gold; e.currentTarget.style.borderColor = "var(--lc-selBorder)"; }}>
-          + Slovo
-        </button>
+        {/* + Slovo — vyraznejsi (skryto u balicku stazenych z knihovny) */}
+        {!deck.fromLibrary && (
+          <button className="btn" onClick={() => setShowAdd(true)}
+            style={{
+              border: `1px solid var(--lc-selBorder)`,
+              background: "var(--lc-selBg)",
+              color: C.gold,
+              borderRadius: 8, padding: "5px 13px", fontSize: 12,
+              cursor: "pointer", flexShrink: 0, fontWeight: 600,
+              whiteSpace: "nowrap",
+              transition: "all .2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = C.gold; e.currentTarget.style.color = C.bg; e.currentTarget.style.borderColor = C.gold; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "var(--lc-selBg)"; e.currentTarget.style.color = C.gold; e.currentTarget.style.borderColor = "var(--lc-selBorder)"; }}>
+            + Slovo
+          </button>
+        )}
       </div>
 
       {/* Word list */}
@@ -315,12 +322,14 @@ export default function DeckScreen({
           );
         })}
 
-        <button className="btn" onClick={() => setShowAdd(true)}
-          style={{ border: `1.5px dashed ${C.border}`, borderRadius: 8, padding: "9px", color: C.muted, fontSize: 13, cursor: "pointer", textAlign: "center" }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}>
-          + Pridat slovicko
-        </button>
+        {!deck.fromLibrary && (
+          <button className="btn" onClick={() => setShowAdd(true)}
+            style={{ border: `1.5px dashed ${C.border}`, borderRadius: 8, padding: "9px", color: C.muted, fontSize: 13, cursor: "pointer", textAlign: "center" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}>
+            + Pridat slovicko
+          </button>
+        )}
       </div>
     </div>
   );

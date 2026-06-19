@@ -257,7 +257,10 @@ export default function HomeScreen({
           onMouseEnter={e => e.currentTarget.style.borderColor = "var(--lc-selBorder)"}
           onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
           {due > 0 && <div style={{ position: "absolute", top: 10, right: 34, background: "var(--lc-dueBg)", border: "1px solid var(--lc-dueBorder)", borderRadius: 20, padding: "2px 7px", fontSize: 10, color: "var(--lc-dueText)", fontWeight: 600 }}>{due} dnes</div>}
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4, lineHeight: 1.2, paddingRight: 42 }}>{d.name}</div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4, lineHeight: 1.2, paddingRight: 42, display: "flex", alignItems: "center", gap: 5 }}>
+            {d.fromLibrary && <span title="Stazeno z knihovny" style={{ fontSize: 12, flexShrink: 0 }}>📚</span>}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
+          </div>
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>{d.words.length} slov · {mastered} zvl.{sr !== null ? ` · ${sr}%` : ""}</div>
           <div style={{ background: "#161e30", borderRadius: 3, height: 3 }}><div style={{ width: `${pct}%`, height: "100%", background: C.gold, borderRadius: 3 }} /></div>
           <div style={{ fontSize: 10, color: C.goldDim, marginTop: 4, textAlign: "right" }}>{pct}% zvladnuto</div>
