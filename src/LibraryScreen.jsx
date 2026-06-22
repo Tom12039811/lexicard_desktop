@@ -92,15 +92,15 @@ function DeckInfoPopover({ deck }) {
           }}
         >
           <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 14, fontWeight: 700, color: C.gold, marginBottom: 6 }}>
-            {deck.title}
+            {deck.name}
           </div>
           {deck.long_desc ? (
             <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6 }}>
               {deck.long_desc}
             </div>
-          ) : deck.description ? (
+          ) : deck.short_desc ? (
             <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6 }}>
-              {deck.description}
+              {deck.short_desc}
             </div>
           ) : (
             <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic" }}>Popis neni k dispozici.</div>
@@ -151,7 +151,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
     if (!isOnline) { setLoading(false); return; }
     supabase
       .from("public_decks")
-      .select("id, title, description, long_desc, language_pair, cards_count, created_at, level, category")
+      .select("id, name, short_desc, long_desc, word_count, created_at, level, category")
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (error) setError("Nepodarilo se nacist knihovnu.");
@@ -166,23 +166,23 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
     setDownloading(deck.id);
     const { data, error } = await supabase
       .from("public_decks")
-      .select("cards, words")
+      .select("words")
       .eq("id", deck.id)
       .single();
 
-    if (error || (!data?.cards && !data?.words)) {
+    if (error || !data?.words?.length) {
       alert("Nepodarilo se stahnout karticky.");
       setDownloading(null);
       return;
     }
 
-    const rawWords = data.words ?? data.cards ?? [];
+    const rawWords = data.words;
     const ts = new Date().toISOString();
     const words = rawWords.map(c => ({
       id:           uid(),
-      en:           c.english ?? c.en ?? "",
-      cs:           c.czech   ?? c.cs ?? "",
-      phonetic:     c.phonetic ?? c.ipa ?? "",
+      en:           c.en       ?? "",
+      cs:           c.cs       ?? "",
+      phonetic:     c.phonetic ?? "",
       example:      c.example  ?? "",
       synonyms:     c.synonyms ?? "",
       score:        0,
@@ -196,7 +196,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
 
     const newDeck = {
       id:          uid(),
-      name:        deck.title,
+      name:        deck.name,
       // Vždy aktivní jazyk (stejně jako u nahrávání Excelu) — language_pair
       // z public_decks nemusí přesně odpovídat ID v langs a balíček by pak
       // v přehledu na hlavní stránce nikdy nešel najít.
@@ -222,15 +222,15 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
       if (filterLevel !== "all" && d.level !== filterLevel) return false;
       if (filterCategory !== "all" && d.category !== filterCategory) return false;
       if (normSearch) {
-        const inTitle = normalize(d.title).includes(normSearch);
-        const inDesc  = normalize(d.description).includes(normSearch) || normalize(d.long_desc).includes(normSearch);
+        const inTitle = normalize(d.name).includes(normSearch);
+        const inDesc  = normalize(d.short_desc).includes(normSearch) || normalize(d.long_desc).includes(normSearch);
         if (!inTitle && !inDesc) return false;
       }
       return true;
     })
     .sort((a, b) => {
-      if (sort === "az")       return (a.title || "").localeCompare(b.title || "", "cs");
-      if (sort === "za")       return (b.title || "").localeCompare(a.title || "", "cs");
+      if (sort === "az")       return (a.name || "").localeCompare(b.name || "", "cs");
+      if (sort === "za")       return (b.name || "").localeCompare(a.name || "", "cs");
       if (sort === "level-az") return (LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level));
       if (sort === "level-za") return (LEVEL_ORDER.indexOf(b.level) - LEVEL_ORDER.indexOf(a.level));
       if (sort === "old")      return new Date(a.created_at) - new Date(b.created_at);
@@ -380,19 +380,19 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
 
                 {/* Nazev */}
                 <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700, color: C.text, lineHeight: 1.3 }}>
-                  {deck.title}
+                  {deck.name}
                 </div>
 
                 {/* Kratky popis */}
-                {deck.description && (
+                {deck.short_desc && (
                   <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, flex: 1 }}>
-                    {deck.description}
+                    {deck.short_desc}
                   </div>
                 )}
 
                 {/* Pocet karet */}
                 <div style={{ fontSize: 11, color: C.mutedDark }}>
-                  📇 {deck.cards_count ?? "?"} karet
+                  📇 {deck.word_count ?? "?"} slov
                 </div>
 
                 {/* Tlacitko stazeni */}
