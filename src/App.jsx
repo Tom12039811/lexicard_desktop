@@ -60,6 +60,7 @@ export default function LexiCard() {
   const [langs, setLangs]             = useState(DEFAULT_LANGS);
   const [folders, setFolders]         = useState([]);
   const [screen, setScreen]           = useState("home");
+  const [newlyDownloaded, setNewlyDownloaded] = useState(new Set());
   const [deckId, setDeckId]           = useState(null);
   const [activeLang, setLang]         = useState("en");
   const [loaded, setLoaded]           = useState(false);
@@ -279,8 +280,8 @@ export default function LexiCard() {
   /* ── library download ── */
   function downloadFromLibrary(newDeck) {
     setDecks(ds => [...ds, newDeck]);
-    setDeckId(newDeck.id);
-    setScreen("deck");
+    setNewlyDownloaded(prev => new Set([...prev, newDeck.id]));
+    // zůstaneme v knihovně — navigace záměrně chybí
   }
   function resetStats()     { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 }, words: d.words.map(w => ({ ...w, score: 0, vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 }, updatedAt: new Date().toISOString() })) })); }
   function addLang(l)       { setLangs(ls => [...ls, l]); setLang(l.id); }
@@ -759,6 +760,8 @@ export default function LexiCard() {
         onLibrary={() => setScreen("library")}
         onLeaderboard={() => setScreen("leaderboard")}
         lightMode={lightMode} onToggleLight={toggleLight}
+        newlyDownloaded={newlyDownloaded}
+        onClearNewlyDownloaded={() => setNewlyDownloaded(new Set())}
       />
       {SyncBanner}
     </>

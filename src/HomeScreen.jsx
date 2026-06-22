@@ -227,6 +227,8 @@ export default function HomeScreen({
   onFolderStudy, onLogout, userEmail, username,
   onLibrary, onLeaderboard,
   lightMode, onToggleLight,
+  newlyDownloaded = new Set(),
+  onClearNewlyDownloaded,
 }) {
   const [sort, setSort] = useState("date-desc");
   const [showUpload, setShowUpload] = useState(false);
@@ -236,6 +238,14 @@ export default function HomeScreen({
   const [moveInfo, setMoveInfo] = useState(null);
   const [openFolders, setOpenFolders] = useState({});
   const [folderStats, setFolderStats] = useState(null);
+
+  // Při prvním zobrazení HomeScreen vymaž highlight nově stažených balíčků
+  useEffect(() => {
+    if (newlyDownloaded.size > 0 && onClearNewlyDownloaded) {
+      const t = setTimeout(onClearNewlyDownloaded, 4000);
+      return () => clearTimeout(t);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ld = sortDecks(decks.filter(d => d.lang === activeLang), sort);
   const lc = langs.find(l => l.id === activeLang) || langs[0];
@@ -250,12 +260,23 @@ export default function HomeScreen({
     const pct = d.words.length ? Math.round(mastered / d.words.length * 100) : 0;
     const due = dueCount(d.words);
     const sr = d.deckStats?.totalAnswers ? Math.round(d.deckStats.correctAnswers / d.deckStats.totalAnswers * 100) : null;
+    const isNew = newlyDownloaded.has(d.id);
     return (
       <div style={{ position: "relative" }}>
         <div onClick={() => onSelect(d.id)} className="btn"
-          style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: "1.2rem", cursor: "pointer", transition: "border-color .2s", textAlign: "left", width: "100%" }}
-          onMouseEnter={e => e.currentTarget.style.borderColor = "var(--lc-selBorder)"}
-          onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+          style={{
+            background: C.card,
+            border: `1px solid ${isNew ? "#4a90d9" : C.border}`,
+            borderRadius: 16,
+            padding: "1.2rem",
+            cursor: "pointer",
+            transition: "border-color .2s, box-shadow .2s",
+            textAlign: "left",
+            width: "100%",
+            ...(isNew ? { boxShadow: "0 0 0 3px rgba(74,144,217,0.25), 0 0 16px rgba(74,144,217,0.15)" } : {}),
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--lc-selBorder)"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = isNew ? "#4a90d9" : C.border; }}>
           {due > 0 && <div style={{ position: "absolute", top: 10, right: 34, background: "var(--lc-dueBg)", border: "1px solid var(--lc-dueBorder)", borderRadius: 20, padding: "2px 7px", fontSize: 10, color: "var(--lc-dueText)", fontWeight: 600 }}>{due} dnes</div>}
           <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4, lineHeight: 1.2, paddingRight: 42, display: "flex", alignItems: "center", gap: 5 }}>
             {d.fromLibrary && <span title="Stazeno z knihovny" style={{ fontSize: 12, flexShrink: 0 }}>📚</span>}

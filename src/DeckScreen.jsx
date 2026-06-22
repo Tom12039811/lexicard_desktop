@@ -166,7 +166,9 @@ export default function DeckScreen({
                   📚 Knihovna
                 </span>
               )}
-              <button className="btn" onClick={() => setShowRename(true)} style={{ color: C.muted, fontSize: 14, flexShrink: 0, opacity: .7 }} title="Prejmenovat">✏️</button>
+              {!deck.fromLibrary && (
+                <button className="btn" onClick={() => setShowRename(true)} style={{ color: C.muted, fontSize: 14, flexShrink: 0, opacity: .7 }} title="Prejmenovat">✏️</button>
+              )}
             </div>
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
               {hasSavedSession && (
