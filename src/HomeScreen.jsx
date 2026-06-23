@@ -239,13 +239,7 @@ export default function HomeScreen({
   const [openFolders, setOpenFolders] = useState({});
   const [folderStats, setFolderStats] = useState(null);
 
-  // Při prvním zobrazení HomeScreen vymaž highlight nově stažených balíčků
-  useEffect(() => {
-    if (newlyDownloaded.size > 0 && onClearNewlyDownloaded) {
-      const t = setTimeout(onClearNewlyDownloaded, 4000);
-      return () => clearTimeout(t);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // highlight nově stažených balíčků se čistí v App.jsx při odchodu z LibraryScreen
 
   const ld = sortDecks(decks.filter(d => d.lang === activeLang), sort);
   const lc = langs.find(l => l.id === activeLang) || langs[0];

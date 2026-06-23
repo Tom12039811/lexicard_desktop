@@ -40,7 +40,14 @@ function isNewer(a, b) {
  * @returns {Array} sloučené pole decků (pro setDecks)
  */
 export async function syncDecks(localDecks, userId) {
-  /* 1. Stáhni všechny decky uživatele ze Supabase */
+  /* 1. Načti seznam záměrně smazaných deck ID z localStorage */
+  let deletedIds = new Set();
+  try {
+    const raw = localStorage.getItem("lc6_deletedDecks");
+    if (raw) deletedIds = new Set(JSON.parse(raw));
+  } catch {}
+
+  /* 2. Stáhni všechny decky uživatele ze Supabase */
   const { data: remoteDecks, error } = await supabase
     .from("decks")
     .select("*")
@@ -51,9 +58,16 @@ export async function syncDecks(localDecks, userId) {
     return localDecks; // offline fallback — ponecháme lokální data
   }
 
-  /* 2. Slouč lokální a vzdálené decky (timestamp wins) */
+  /* 3. Smaž ze Supabase decky které byly záměrně smazány lokálně */
+  const toDeleteRemote = remoteDecks.filter(r => deletedIds.has(r.id)).map(r => r.id);
+  if (toDeleteRemote.length > 0) {
+    await supabase.from("decks").delete().in("id", toDeleteRemote);
+    await supabase.from("cards").delete().in("deck_id", toDeleteRemote);
+  }
+
+  /* 4. Slouč lokální a vzdálené decky (timestamp wins) */
   const localMap  = new Map(localDecks.map(d => [d.id, d]));
-  const remoteMap = new Map(remoteDecks.map(d => [d.id, d]));
+  const remoteMap = new Map(remoteDecks.filter(r => !deletedIds.has(r.id)).map(d => [d.id, d]));
   const allIds    = new Set([...localMap.keys(), ...remoteMap.keys()]);
 
   const toUpsert = []; // decky k zapsání do Supabase
@@ -78,7 +92,7 @@ export async function syncDecks(localDecks, userId) {
       toUpsert.push(deckToRemote(local, userId));
       merged.push(local);
     } else if (!local && remote) {
-      // Pouze vzdáleně → stáhni lokálně
+      // Pouze vzdáleně → stáhni lokálně (jen pokud nebyl záměrně smazán)
       merged.push(deckFromRemote(remote, null));
     }
   }

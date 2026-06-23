@@ -274,7 +274,25 @@ export default function LexiCard() {
     // Okamžitá aktualizace karet v probíhajícím kole
     setRWords(rw => rw.map(w => w.id !== wid ? w : { ...w, ...data, updatedAt: new Date().toISOString() }));
   }
-  function delDeck()        { setDecks(ds => ds.filter(d => d.id !== deckId)); setScreen("home"); }
+  function delDeck() {
+    if (!deckId) return;
+    // 1. Zapamatuj si smazané ID aby ho sync znovu nestáhl ze Supabase
+    try {
+      const raw = localStorage.getItem("lc6_deletedDecks");
+      const deleted = new Set(raw ? JSON.parse(raw) : []);
+      deleted.add(deckId);
+      localStorage.setItem("lc6_deletedDecks", JSON.stringify([...deleted]));
+    } catch {}
+    // 2. Fyzicky smaž ze Supabase (cards nejdřív kvůli FK)
+    if (session?.user?.id) {
+      supabase.from("cards").delete().eq("deck_id", deckId).then(() => {
+        supabase.from("decks").delete().eq("id", deckId);
+      });
+    }
+    // 3. Odstraň lokálně
+    setDecks(ds => ds.filter(d => d.id !== deckId));
+    setScreen("home");
+  }
   function renameDeck(name) { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, name, updatedAt: new Date().toISOString() })); }
 
   /* ── library download ── */
@@ -771,7 +789,10 @@ export default function LexiCard() {
     <LibraryScreen
       activeLang={activeLang}
       lightMode={lightMode}
-      onBack={() => setScreen("home")}
+      onBack={() => {
+        setNewlyDownloaded(new Set());
+        setScreen("home");
+      }}
       onDownload={downloadFromLibrary}
     />
   );
