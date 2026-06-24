@@ -160,7 +160,17 @@ export default function LexiCard() {
       const raw = localStorage.getItem("lc6_data");
       if (raw) {
         const d = JSON.parse(raw);
-        if (d.decks)     setDecks(d.decks);
+        if (d.decks) {
+          // Migrace: synonyms mohly být uloženy jako pole (z Supabase JSONB) — normalizuj na string
+          const migratedDecks = d.decks.map(deck => ({
+            ...deck,
+            words: (deck.words || []).map(w => ({
+              ...w,
+              synonyms: Array.isArray(w.synonyms) ? w.synonyms.join(", ") : (w.synonyms ?? ""),
+            })),
+          }));
+          setDecks(migratedDecks);
+        }
         if (d.lang)      setLang(d.lang);
         if (d.langs)     setLangs(p => { const ids = new Set(p.map(l => l.id)); return [...p, ...d.langs.filter(l => !ids.has(l.id))]; });
         if (d.gameStats) setGameStats(d.gameStats);
