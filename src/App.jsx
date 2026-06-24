@@ -789,6 +789,7 @@ export default function LexiCard() {
     <LibraryScreen
       activeLang={activeLang}
       lightMode={lightMode}
+      localDecks={decks}
       onBack={() => {
         setNewlyDownloaded(new Set());
         setScreen("home");

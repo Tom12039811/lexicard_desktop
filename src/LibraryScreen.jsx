@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { C, STYLE } from "./constants.js";
 import { uid, now } from "./utils.js";
 import { supabase } from "./supabase.js";
@@ -133,12 +133,18 @@ function DeckInfoPopover({ deck }) {
 /* ══════════════════════════════════════════════════════════════
    LibraryScreen
 ══════════════════════════════════════════════════════════════ */
-export default function LibraryScreen({ onBack, onDownload, activeLang, lightMode }) {
+export default function LibraryScreen({ onBack, onDownload, activeLang, lightMode, localDecks = [] }) {
   const [decks, setDecks]           = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
   const [downloaded, setDownloaded] = useState(new Set());
   const [downloading, setDownloading] = useState(null);
+
+  // Supabase IDs balíčků, které uživatel už má stažené z knihovny
+  const alreadyOwned = useMemo(
+    () => new Set(localDecks.map(d => d.fromLibrary).filter(Boolean)),
+    [localDecks]
+  );
   const [search, setSearch]         = useState("");
   const [sort, setSort]             = useState("new");
   const [filterLevel, setFilterLevel] = useState("all");
@@ -184,7 +190,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
       cs:           c.cs       ?? "",
       phonetic:     c.phonetic ?? "",
       example:      c.example  ?? "",
-      synonyms:     c.synonyms ?? "",
+      synonyms:     Array.isArray(c.synonyms) ? c.synonyms.join(", ") : (c.synonyms ?? ""),
       score:        0,
       addedAt:      now(),
       vmBox:        1,
@@ -348,7 +354,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
       {!loading && !error && isOnline && (
         <div style={{ width: "100%", maxWidth: 860, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 14 }}>
           {filtered.map(deck => {
-            const isDone    = downloaded.has(deck.id);
+            const isDone    = downloaded.has(deck.id) || alreadyOwned.has(deck.id);
             const isLoading = downloading === deck.id;
 
             return (
