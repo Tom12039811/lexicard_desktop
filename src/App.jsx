@@ -27,12 +27,22 @@ function buildDailyPool(words) {
 export default function LexiCard() {
   /* ── auth session ── */
   const [session, setSession] = useState(undefined); // undefined = loading, null = not logged in
+  const [isPasswordReset, setIsPasswordReset] = useState(false);
 
   useEffect(() => {
+    // Detekce recovery odkazu — Supabase posílá token ve fragmentu URL (#access_token=...&type=recovery)
+    const hash = window.location.hash;
+    if (hash && hash.includes("type=recovery")) {
+      setIsPasswordReset(true);
+    }
+
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session ?? null);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setIsPasswordReset(true);
+      }
       setSession(session ?? null);
     });
     return () => listener.subscription.unsubscribe();
@@ -744,6 +754,18 @@ export default function LexiCard() {
       <div style={{ color: "var(--lc-textDim)", fontSize: 14 }}>Načítám…</div>
     </div>
   );
+  // Password reset — zobraz formulář pro nové heslo (session může existovat z recovery tokenu)
+  if (isPasswordReset) return (
+    <AuthScreen
+      initialMode="newPassword"
+      onPasswordChanged={() => {
+        // Po úspěšné změně hesla — vyčisti URL hash a pokračuj normálně
+        setIsPasswordReset(false);
+        window.history.replaceState(null, "", window.location.pathname);
+      }}
+    />
+  );
+
   if (session === null) return <AuthScreen />;
 
   /* ── sync status banner ── */
@@ -801,7 +823,8 @@ export default function LexiCard() {
       lightMode={lightMode}
       localDecks={decks}
       onBack={() => {
-        setNewlyDownloaded(new Set());
+        // highlights se NEmaží zde — mají být vidět na HomeScreen
+        // čistí je HomeScreen sám při odchodu jinam (onClearNewlyDownloaded)
         setScreen("home");
       }}
       onDownload={downloadFromLibrary}

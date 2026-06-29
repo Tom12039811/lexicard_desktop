@@ -2,10 +2,11 @@ import { useState } from "react";
 import { supabase } from "./supabase.js";
 import { C, STYLE } from "./constants.js";
 
-export default function AuthScreen() {
-  const [mode, setMode] = useState("login"); // "login" | "register" | "forgot"
+export default function AuthScreen({ initialMode = "login", onPasswordChanged }) {
+  const [mode, setMode] = useState(initialMode); // "login" | "register" | "forgot" | "newPassword"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -14,12 +15,34 @@ export default function AuthScreen() {
   async function handleSubmit() {
     setError("");
     setInfo("");
+
+    // ── Nastavení nového hesla (recovery flow) ──
+    if (mode === "newPassword") {
+      if (!password) { setError("Vyplň nové heslo."); return; }
+      if (password.length < 6) { setError("Heslo musí mít alespoň 6 znaků."); return; }
+      if (password !== password2) { setError("Hesla se neshodují."); return; }
+      setLoading(true);
+      try {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+        setInfo("Heslo bylo úspěšně změněno! Přihlašuji tě…");
+        setTimeout(() => {
+          if (onPasswordChanged) onPasswordChanged();
+        }, 1500);
+      } catch (e) {
+        setError(translateError(e.message));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (mode === "forgot") {
       if (!email) { setError("Vyplň emailovou adresu."); return; }
       setLoading(true);
       try {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin + "?reset=1",
+          redirectTo: window.location.origin + "/",
         });
         if (error) throw error;
         setInfo("Email odeslán! Zkontroluj svoji schránku a klikni na odkaz pro obnovu hesla.");
@@ -88,6 +111,7 @@ export default function AuthScreen() {
   };
 
   const isForgot = mode === "forgot";
+  const isNewPassword = mode === "newPassword";
 
   return (
     <div style={{
@@ -124,7 +148,48 @@ export default function AuthScreen() {
         width: "100%",
         maxWidth: 400,
       }}>
-        {isForgot ? (
+        {isNewPassword ? (
+          /* ── New password view (recovery flow) ── */
+          <>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: "0.4rem" }}>Nové heslo</div>
+            <div style={{ fontSize: 13, color: "var(--lc-textDim)", marginBottom: "1.25rem", lineHeight: 1.5 }}>
+              Zadej své nové heslo.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <input
+                style={inp}
+                type="password"
+                placeholder="Nové heslo (min. 6 znaků)"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+              <input
+                style={inp}
+                type="password"
+                placeholder="Zopakuj nové heslo"
+                value={password2}
+                onChange={e => setPassword2(e.target.value)}
+                autoComplete="new-password"
+                onKeyDown={e => e.key === "Enter" && handleSubmit()}
+              />
+            </div>
+            {error && (
+              <div style={{ marginTop: "0.75rem", padding: "0.6rem 0.9rem", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#f87171", fontSize: 13 }}>{error}</div>
+            )}
+            {info && (
+              <div style={{ marginTop: "0.75rem", padding: "0.6rem 0.9rem", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 8, color: "#4ade80", fontSize: 13 }}>{info}</div>
+            )}
+            <button
+              className="btn"
+              onClick={handleSubmit}
+              disabled={loading}
+              style={{ width: "100%", marginTop: "1rem", padding: "0.8rem", borderRadius: 12, background: C.gold, color: "#fff", fontWeight: 700, fontSize: 15, opacity: loading ? 0.7 : 1 }}
+            >
+              {loading ? "Ukládám…" : "Uložit heslo"}
+            </button>
+          </>
+        ) : isForgot ? (
           /* ── Forgot password view ── */
           <>
             <div style={{ marginBottom: "1.25rem" }}>
