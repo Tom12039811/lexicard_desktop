@@ -80,10 +80,6 @@ function DeckSettingsDropdown({ onDelete, onExport, isLibrary }) {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  // Pokud je to library balíček a nemá žádné položky v menu, nevykresli dropdown
-  const hasItems = !isLibrary; // export a delete jsou skryty u library
-  if (!hasItems) return null;
-
   return (
     <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
       <button className="btn" onClick={() => setOpen(o => !o)}
@@ -92,13 +88,18 @@ function DeckSettingsDropdown({ onDelete, onExport, isLibrary }) {
       </button>
       {open && (
         <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: "var(--lc-dropBg)", border: `1px solid var(--lc-modalBorder)`, borderRadius: 12, overflow: "hidden", minWidth: 200, zIndex: 50, boxShadow: `0 8px 28px var(--lc-shadow)` }}>
-          <button className="btn" onClick={() => { onExport(); setOpen(false); }}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.textDim, fontSize: 13, textAlign: "left", transition: "background .15s" }}
-            onMouseEnter={e => e.currentTarget.style.background = "var(--lc-dropHover)"}
-            onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-            <span style={{ fontSize: 16 }}>📥</span> Export do Excelu
-          </button>
-          <div style={{ borderTop: `1px solid ${C.border}` }} />
+          {/* Export — skryto pro balíčky z knihovny */}
+          {!isLibrary && (
+            <>
+              <button className="btn" onClick={() => { onExport(); setOpen(false); }}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.textDim, fontSize: 13, textAlign: "left", transition: "background .15s" }}
+                onMouseEnter={e => e.currentTarget.style.background = "var(--lc-dropHover)"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <span style={{ fontSize: 16 }}>📥</span> Export do Excelu
+              </button>
+              <div style={{ borderTop: `1px solid ${C.border}` }} />
+            </>
+          )}
           <button className="btn" onClick={() => { onDelete(); setOpen(false); }}
             style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.err, fontSize: 13, textAlign: "left", transition: "background .15s" }}
             onMouseEnter={e => e.currentTarget.style.background = "var(--lc-errBg)"}
@@ -319,7 +320,21 @@ export default function DeckScreen({
 
               {/* Expand panel — pouze na mobilu */}
               {isExpanded && (
-                <div className="mob-expand-panel" style={{ borderTop: `1px solid ${C.border}`, padding: "10px 10px 10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+                <div className="mob-expand-panel" style={{ borderTop: `1px solid ${C.border}`, padding: "10px 10px 10px 12px", display: "flex", flexDirection: "column", gap: 8, position: "relative" }}>
+                  <button
+                    className="mob-collapse-btn btn"
+                    onClick={() => setExpandedRows(prev => ({ ...prev, [w.id]: false }))}
+                    title="Sbalit"
+                    style={{
+                      position: "absolute", top: 6, right: 8,
+                      width: 22, height: 22, borderRadius: "50%",
+                      alignItems: "center", justifyContent: "center",
+                      background: "var(--lc-cardAlt)", border: `1px solid ${C.border}`,
+                      color: C.muted, fontSize: 11, cursor: "pointer", padding: 0,
+                    }}
+                  >
+                    ▲
+                  </button>
                   <div>
                     <div style={{ fontSize: 9, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 3 }}>Prikladova veta</div>
                     <input

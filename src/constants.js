@@ -271,7 +271,8 @@ export const STYLE = `
   /* mob-expand: skryto na desktopu, viditelne na mobilu */
   .mob-expand-panel{display:none;}
   .mob-has-extra{display:none;}
-  .mob-expand-btn{cursor:default;}
+  .mob-expand-btn{cursor:default;pointer-events:none;}
+  .mob-collapse-btn{display:none;}
   @media(max-width:640px){
     .stat-grid{grid-template-columns:repeat(3,1fr)!important;}
     .word-row{grid-template-columns:22px 1fr 1fr 22px!important;}
@@ -280,7 +281,8 @@ export const STYLE = `
     .deck-hdr{flex-wrap:wrap;gap:6px!important;}
     .mob-expand-panel{display:flex!important;}
     .mob-has-extra{display:flex!important;}
-    .mob-expand-btn{cursor:pointer!important;font-weight:700;}
+    .mob-expand-btn{cursor:pointer!important;font-weight:700;pointer-events:auto!important;}
+    .mob-collapse-btn{display:flex!important;}
   }
   ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--lc-scrollTrack)}::-webkit-scrollbar-thumb{background:var(--lc-scrollThumb);border-radius:2px}
 `;
