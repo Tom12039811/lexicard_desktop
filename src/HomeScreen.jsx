@@ -255,14 +255,11 @@ export default function HomeScreen({
     const due = dueCount(d.words);
     const sr = d.deckStats?.totalAnswers ? Math.round(d.deckStats.correctAnswers / d.deckStats.totalAnswers * 100) : null;
     const isNew = newlyDownloaded.has(d.id);
-
-    // Dynamická velikost písma podle délky názvu
-    const nameLen = d.name.length;
-    const nameFontSize = nameLen > 40 ? 12 : nameLen > 28 ? 13 : nameLen > 18 ? 14 : 16;
-
+    const nameLen = d.name?.length ?? 0;
+    const nameFontSize = nameLen > 34 ? 11 : nameLen > 26 ? 12 : nameLen > 20 ? 13.5 : 16;
     return (
       <div style={{ position: "relative" }}>
-        <div onClick={() => { onClearNewlyDownloaded(); onSelect(d.id); }} className="btn"
+        <div onClick={() => onSelect(d.id)} className="btn"
           style={{
             background: C.card,
             border: `1px solid ${isNew ? "#4a90d9" : C.border}`,
@@ -277,9 +274,9 @@ export default function HomeScreen({
           onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--lc-selBorder)"; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = isNew ? "#4a90d9" : C.border; }}>
           {due > 0 && <div style={{ position: "absolute", top: 10, right: 34, background: "var(--lc-dueBg)", border: "1px solid var(--lc-dueBorder)", borderRadius: 20, padding: "2px 7px", fontSize: 10, color: "var(--lc-dueText)", fontWeight: 600 }}>{due} dnes</div>}
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: nameFontSize, fontWeight: 700, color: C.text, marginBottom: 4, lineHeight: 1.25, paddingRight: 42, display: "flex", alignItems: "center", gap: 5 }}>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4, lineHeight: 1.2, paddingRight: 42, display: "flex", alignItems: "center", gap: 5 }}>
             {d.fromLibrary && <span title="Stazeno z knihovny" style={{ fontSize: 12, flexShrink: 0 }}>📚</span>}
-            <span style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>{d.name}</span>
+            <span style={{ fontSize: nameFontSize, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
           </div>
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>{d.words.length} slov · {mastered} zvl.{sr !== null ? ` · ${sr}%` : ""}</div>
           <div style={{ background: "#161e30", borderRadius: 3, height: 3 }}><div style={{ width: `${pct}%`, height: "100%", background: C.gold, borderRadius: 3 }} /></div>
@@ -462,7 +459,7 @@ export default function HomeScreen({
                     <span style={{ fontSize: 11, color: C.muted }}>{isOpen ? "▲" : "▼"}</span>
                   </div>
                   {isOpen && (
-                    <div style={{ padding: "0 10px 10px", display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 10 }}>
+                    <div className="deck-grid" style={{ padding: "0 10px 10px" }}>
                       {fDecks.length === 0
                         ? <div style={{ color: C.muted, fontSize: 12, fontStyle: "italic", padding: "8px 4px", gridColumn: "1/-1" }}>Slozka je prazdna — presun sem balicek pomoci 📁</div>
                         : fDecks.map(d => <DeckCard key={d.id} d={d} />)}
@@ -474,7 +471,7 @@ export default function HomeScreen({
             {looseDecks.length > 0 && (
               <div>
                 {langFolders.length > 0 && <div style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Bez slozky</div>}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 12 }}>
+                <div className="deck-grid">
                   {looseDecks.map(d => <DeckCard key={d.id} d={d} />)}
                 </div>
               </div>

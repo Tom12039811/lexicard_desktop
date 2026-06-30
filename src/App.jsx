@@ -27,21 +27,15 @@ function buildDailyPool(words) {
 export default function LexiCard() {
   /* ── auth session ── */
   const [session, setSession] = useState(undefined); // undefined = loading, null = not logged in
-  const [isPasswordReset, setIsPasswordReset] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false); // true = uzivatel prisel z odkazu pro obnovu hesla
 
   useEffect(() => {
-    // Detekce recovery odkazu — Supabase posílá token ve fragmentu URL (#access_token=...&type=recovery)
-    const hash = window.location.hash;
-    if (hash && hash.includes("type=recovery")) {
-      setIsPasswordReset(true);
-    }
-
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session ?? null);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setIsPasswordReset(true);
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
       }
       setSession(session ?? null);
     });
@@ -754,19 +748,8 @@ export default function LexiCard() {
       <div style={{ color: "var(--lc-textDim)", fontSize: 14 }}>Načítám…</div>
     </div>
   );
-  // Password reset — zobraz formulář pro nové heslo (session může existovat z recovery tokenu)
-  if (isPasswordReset) return (
-    <AuthScreen
-      initialMode="newPassword"
-      onPasswordChanged={() => {
-        // Po úspěšné změně hesla — vyčisti URL hash a pokračuj normálně
-        setIsPasswordReset(false);
-        window.history.replaceState(null, "", window.location.pathname);
-      }}
-    />
-  );
-
   if (session === null) return <AuthScreen />;
+  if (recoveryMode) return <AuthScreen recoveryMode onRecoveryDone={() => setRecoveryMode(false)} />;
 
   /* ── sync status banner ── */
   const SyncBanner = syncStatus ? (
@@ -800,7 +783,7 @@ export default function LexiCard() {
       <HomeScreen
         decks={decks} langs={langs} activeLang={activeLang} gameStats={gameStats} folders={folders}
         onLangSwitch={setLang} onAddLang={addLang} onEditLang={editLang} onDeleteLang={deleteLang}
-        onSelect={id => { setDeckId(id); setScreen("deck"); }}
+        onSelect={id => { setDeckId(id); setScreen("deck"); setNewlyDownloaded(prev => { if (!prev.has(id)) return prev; const next = new Set(prev); next.delete(id); return next; }); }}
         onFileUpload={loadFile} onSampleDeck={loadSampleDeck}
         onAddFolder={addFolder} onRenameFolder={renameFolder} onDeleteFolder={deleteFolder} onMoveDeck={moveDeck}
         onFolderStudy={startFolderStudy}
@@ -823,8 +806,6 @@ export default function LexiCard() {
       lightMode={lightMode}
       localDecks={decks}
       onBack={() => {
-        // highlights se NEmaží zde — mají být vidět na HomeScreen
-        // čistí je HomeScreen sám při odchodu jinam (onClearNewlyDownloaded)
         setScreen("home");
       }}
       onDownload={downloadFromLibrary}

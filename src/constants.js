@@ -258,6 +258,9 @@ export const STYLE = `
   .inp-sm:focus{border-color:var(--lc-gold)}.inp-sm::placeholder{color:var(--lc-inputPlaceholder)}
   .tdinp{width:100%;background:transparent;border:none;color:var(--lc-textDim);font-size:13px;font-family:'Lora',serif;outline:none;padding:8px 10px;border-radius:6px;transition:background .15s;}
   .tdinp:focus{background:var(--lc-cardAlt);}.tdinp::placeholder{color:var(--lc-inputPlaceholder)}
+  .tdinp[readonly]{color:var(--lc-muted);cursor:default;}.tdinp[readonly]:focus{background:transparent;}
+  .deck-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:12px;}
+  @media(min-width:641px){.deck-grid{grid-template-columns:repeat(2,minmax(340px,1fr));}}
   .wv{width:4px;border-radius:2px;background:var(--lc-gold);display:inline-block;margin:0 2px;}
   .wv:nth-child(1){animation:wave .8s ease-in-out infinite 0s}.wv:nth-child(2){animation:wave .8s ease-in-out infinite .13s}
   .wv:nth-child(3){animation:wave .8s ease-in-out infinite .26s}.wv:nth-child(4){animation:wave .8s ease-in-out infinite .39s}
@@ -271,8 +274,7 @@ export const STYLE = `
   /* mob-expand: skryto na desktopu, viditelne na mobilu */
   .mob-expand-panel{display:none;}
   .mob-has-extra{display:none;}
-  .mob-expand-btn{cursor:default;pointer-events:none;}
-  .mob-collapse-btn{display:none;}
+  .mob-expand-btn{cursor:default;}
   @media(max-width:640px){
     .stat-grid{grid-template-columns:repeat(3,1fr)!important;}
     .word-row{grid-template-columns:22px 1fr 1fr 22px!important;}
@@ -281,8 +283,7 @@ export const STYLE = `
     .deck-hdr{flex-wrap:wrap;gap:6px!important;}
     .mob-expand-panel{display:flex!important;}
     .mob-has-extra{display:flex!important;}
-    .mob-expand-btn{cursor:pointer!important;font-weight:700;pointer-events:auto!important;}
-    .mob-collapse-btn{display:flex!important;}
+    .mob-expand-btn{cursor:pointer!important;font-weight:700;}
   }
   ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--lc-scrollTrack)}::-webkit-scrollbar-thumb{background:var(--lc-scrollThumb);border-radius:2px}
 `;

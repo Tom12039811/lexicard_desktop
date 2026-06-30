@@ -71,7 +71,7 @@ function StatInfoButton({ label }) {
 }
 
 /* ── Deck Settings Dropdown ───────────────────────────────────── */
-function DeckSettingsDropdown({ onDelete, onExport, isLibrary }) {
+function DeckSettingsDropdown({ onDelete, onExport, hideExport }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -79,7 +79,6 @@ function DeckSettingsDropdown({ onDelete, onExport, isLibrary }) {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-
   return (
     <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
       <button className="btn" onClick={() => setOpen(o => !o)}
@@ -88,8 +87,7 @@ function DeckSettingsDropdown({ onDelete, onExport, isLibrary }) {
       </button>
       {open && (
         <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: "var(--lc-dropBg)", border: `1px solid var(--lc-modalBorder)`, borderRadius: 12, overflow: "hidden", minWidth: 200, zIndex: 50, boxShadow: `0 8px 28px var(--lc-shadow)` }}>
-          {/* Export — skryto pro balíčky z knihovny */}
-          {!isLibrary && (
+          {!hideExport && (
             <>
               <button className="btn" onClick={() => { onExport(); setOpen(false); }}
                 style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.textDim, fontSize: 13, textAlign: "left", transition: "background .15s" }}
@@ -160,7 +158,7 @@ export default function DeckScreen({
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button className="btn" onClick={onBack} style={{ color: C.muted, fontSize: 13, flexShrink: 0 }}>← Balicky</button>
             <div style={{ flex: 1 }} />
-            <DeckSettingsDropdown onDelete={() => setShowDelDeck(true)} onExport={onExport} isLibrary={!!deck.fromLibrary} />
+            <DeckSettingsDropdown onDelete={() => setShowDelDeck(true)} onExport={onExport} hideExport={!!deck.fromLibrary} />
           </div>
 
           {/* Row 2: Deck name + study buttons */}
@@ -260,81 +258,49 @@ export default function DeckScreen({
 
         {sorted.map((w, i) => {
           const isExpanded = expandedRows[w.id] || false;
-          const isLib = !!deck.fromLibrary;
+          const hasExtra = (w.example && w.example.trim()) || (w.synonyms && w.synonyms.trim());
+          const locked = !!deck.fromLibrary; // balíčky z knihovny — bez editace slov
           return (
-            <div key={w.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden" }}>
+            <div key={w.id} style={{ background: C.card, border: `1px solid ${isExpanded ? "var(--lc-selBorder)" : C.border}`, borderRadius: 8, transition: "border-color .2s", overflow: "hidden" }}>
+              {/* Hlavni radek — desktop i mobil */}
               <div className="word-row" style={{ alignItems: "center" }}>
-                {/* Číslo — na desktopu jen text, na mobilu expand toggle */}
+                {/* Cislo / expand toggle — funguje pouze na mobilu */}
                 <span
                   className="mob-expand-btn"
-                  onClick={() => setExpandedRows(prev => ({ ...prev, [w.id]: !isExpanded }))}
-                  style={{ fontSize: 10, color: isExpanded ? C.gold : C.muted, textAlign: "center", lineHeight: 1 }}
+                  onClick={() => { if (window.innerWidth > 640) return; setExpandedRows(prev => ({ ...prev, [w.id]: !isExpanded })); }}
+                  style={{ fontSize: 10, color: isExpanded ? C.gold : C.muted, textAlign: "center", cursor: "pointer", userSelect: "none", lineHeight: 1 }}
+                  title={isExpanded ? "Skrit detaily" : "Zobrazit detaily"}
                 >
                   {i + 1}
                 </span>
-                {/* EN — readonly pro library */}
-                <input
-                  className="tdinp"
-                  value={w.en}
-                  placeholder="anglicky…"
-                  onChange={e => !isLib && onUpdate(w.id, "en", e.target.value)}
-                  readOnly={isLib}
-                  style={isLib ? { opacity: 0.75, cursor: "default" } : {}}
-                />
-                {/* CS — readonly pro library */}
-                <input
-                  className="tdinp"
-                  value={w.cs}
-                  placeholder="cesky…"
-                  onChange={e => !isLib && onUpdate(w.id, "cs", e.target.value)}
-                  readOnly={isLib}
-                  style={isLib ? { opacity: 0.75, cursor: "default" } : {}}
-                />
-                {/* Example — vždy editovatelné */}
+                <input className="tdinp" value={w.en} placeholder="anglicky…" readOnly={locked} onChange={e => onUpdate(w.id, "en", e.target.value)} />
+                <input className="tdinp" value={w.cs} placeholder="cesky…" readOnly={locked} onChange={e => onUpdate(w.id, "cs", e.target.value)} />
                 <input className="tdinp col-ex" value={w.example || ""} placeholder="prikladova veta…" onChange={e => onUpdate(w.id, "example", e.target.value)} />
-                {/* Synonyma — readonly pro library */}
-                <input
-                  className="tdinp col-syn"
-                  value={w.synonyms || ""}
-                  placeholder="synonyma…"
-                  onChange={e => !isLib && onUpdate(w.id, "synonyms", e.target.value)}
-                  readOnly={isLib}
-                  style={isLib ? { opacity: 0.75, cursor: "default" } : {}}
-                />
-                {/* Delete — skryto pro library */}
-                {!isLib ? (
-                  <button className="btn" onClick={() => onDeleteWord(w.id)}
-                    style={{
-                      background: "var(--lc-wordDelBg)", color: "var(--lc-wordDelColor)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      padding: 0, height: "100%", borderRadius: "0 8px 8px 0",
-                      width: 36, minWidth: 36, cursor: "pointer", flexShrink: 0,
-                      fontSize: 13, lineHeight: 1,
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "var(--lc-wordDelHover)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "var(--lc-wordDelBg)"; }}>✕</button>
-                ) : (
-                  <div style={{ width: 36, minWidth: 36, flexShrink: 0 }} />
-                )}
+                <input className="tdinp col-syn" value={w.synonyms || ""} placeholder="synonyma…" readOnly={locked} onChange={e => onUpdate(w.id, "synonyms", e.target.value)} />
+                <button className="btn" onClick={() => onDeleteWord(w.id)}
+                  style={{
+                    background: "var(--lc-wordDelBg)", color: "var(--lc-wordDelColor)", fontSize: 15, fontWeight: "bold",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: "0 14px 0 6px", height: "100%", borderRadius: "0 8px 8px 0",
+                    minWidth: 36, cursor: "pointer", flexShrink: 0,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "var(--lc-wordDelHover)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "var(--lc-wordDelBg)"; }}>✕</button>
               </div>
 
-              {/* Expand panel — pouze na mobilu */}
+              {/* Expand panel — pouze na mobilu (640px a mene) */}
               {isExpanded && (
-                <div className="mob-expand-panel" style={{ borderTop: `1px solid ${C.border}`, padding: "10px 10px 10px 12px", display: "flex", flexDirection: "column", gap: 8, position: "relative" }}>
-                  <button
-                    className="mob-collapse-btn btn"
-                    onClick={() => setExpandedRows(prev => ({ ...prev, [w.id]: false }))}
-                    title="Sbalit"
-                    style={{
-                      position: "absolute", top: 6, right: 8,
-                      width: 22, height: 22, borderRadius: "50%",
-                      alignItems: "center", justifyContent: "center",
-                      background: "var(--lc-cardAlt)", border: `1px solid ${C.border}`,
-                      color: C.muted, fontSize: 11, cursor: "pointer", padding: 0,
-                    }}
-                  >
-                    ▲
-                  </button>
+                <div className="mob-expand-panel" style={{ borderTop: `1px solid ${C.border}`, padding: "10px 10px 10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      className="btn"
+                      onClick={() => setExpandedRows(prev => ({ ...prev, [w.id]: false }))}
+                      title="Zabalit radek"
+                      style={{ fontSize: 11, color: C.mutedDark, padding: "2px 6px", display: "flex", alignItems: "center", gap: 4 }}
+                    >
+                      Zabalit ▲
+                    </button>
+                  </div>
                   <div>
                     <div style={{ fontSize: 9, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 3 }}>Prikladova veta</div>
                     <input
@@ -345,29 +311,29 @@ export default function DeckScreen({
                       style={{ width: "100%", background: "var(--lc-cardAlt)", borderRadius: 6, padding: "7px 10px" }}
                     />
                   </div>
-                  {!isLib && (
-                    <div>
-                      <div style={{ fontSize: 9, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 3 }}>Synonyma</div>
-                      <input
-                        className="tdinp"
-                        value={w.synonyms || ""}
-                        placeholder="Napiste synonyma…"
-                        onChange={e => onUpdate(w.id, "synonyms", e.target.value)}
-                        style={{ width: "100%", background: "var(--lc-cardAlt)", borderRadius: 6, padding: "7px 10px" }}
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <div style={{ fontSize: 9, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 3 }}>Synonyma</div>
+                    <input
+                      className="tdinp"
+                      value={w.synonyms || ""}
+                      placeholder="Napiste synonyma…"
+                      readOnly={locked}
+                      onChange={e => onUpdate(w.id, "synonyms", e.target.value)}
+                      style={{ width: "100%", background: "var(--lc-cardAlt)", borderRadius: 6, padding: "7px 10px" }}
+                    />
+                  </div>
                 </div>
               )}
 
-              {/* Indikator — pouze na mobilu */}
-              {!isExpanded && w.example?.trim() && (
+              {/* Indikator ze existuji data — pouze na mobilu, kdyz neni expand */}
+              {!isExpanded && hasExtra && (
                 <div
                   className="mob-has-extra"
                   onClick={() => setExpandedRows(prev => ({ ...prev, [w.id]: true }))}
                   style={{ borderTop: `1px solid ${C.border}`, padding: "3px 12px", fontSize: 10, color: C.mutedDark, cursor: "pointer", display: "flex", gap: 8 }}
                 >
-                  <span>📝 veta</span>
+                  {w.example?.trim() && <span>📝 veta</span>}
+                  {w.synonyms?.trim() && <span>🔤 synonyma</span>}
                 </div>
               )}
             </div>
@@ -386,4 +352,3 @@ export default function DeckScreen({
     </div>
   );
 }
-

@@ -116,6 +116,7 @@ function deckToRemote(deck, userId) {
     name:          deck.name ?? "Bez názvu",
     folder:        deck.folderId ?? null,   // lokální folderId → remote folder (text)
     language_pair: deck.lang ?? "cs-en",
+    from_library:  deck.fromLibrary ?? null, // id zdrojoveho balicku v public_decks (pokud stazen z knihovny)
     updated_at:    deck.updatedAt ?? tsNow(),
   };
 }
@@ -128,6 +129,7 @@ function deckFromRemote(remote, existingLocal) {
     name:       remote.name,
     folderId:   remote.folder ?? null,
     lang:       remote.language_pair ?? "cs-en",
+    fromLibrary: remote.from_library ?? existingLocal?.fromLibrary ?? null,
     updatedAt:  remote.updated_at,
     words:      existingLocal?.words ?? [],           // karty se syncují zvlášť
     createdAt:  existingLocal?.createdAt ?? remote.updated_at,
@@ -223,6 +225,8 @@ function cardToRemote(word, deckId, userId) {
     english:     word.en  ?? null,
     ipa:         word.ipa ?? null,
     audio_url:   word.audioUrl ?? null,
+    example:     word.example  ?? null,
+    synonyms:    word.synonyms ?? null,
     box:         word.vmBox ?? 1,
     next_review: word.vmNextReview
       ? new Date(word.vmNextReview).toISOString()
@@ -246,9 +250,9 @@ function cardFromRemote(remote, existingLocal) {
     vmLastReview: existingLocal?.vmLastReview ?? null,
     score:        remote.xp ?? 0,
     updatedAt:    remote.updated_at,
-    // Zachovej lokální pole která Supabase nemá
-    example:      existingLocal?.example   ?? "",
-    synonyms:     existingLocal?.synonyms  ?? "",
+    // example/synonyms se sytují ze Supabase; pokud chybi (starsi zaznam), pouzij lokalni
+    example:      remote.example  ?? existingLocal?.example   ?? "",
+    synonyms:     remote.synonyms ?? existingLocal?.synonyms  ?? "",
     addedAt:      existingLocal?.addedAt   ?? remote.updated_at,
     wStats:       existingLocal?.wStats    ?? { total: 0, correct: 0, wrong: 0 },
   };
