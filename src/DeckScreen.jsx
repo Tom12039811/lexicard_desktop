@@ -330,7 +330,7 @@ export default function DeckScreen({
                 <div
                   className="mob-has-extra"
                   onClick={() => setExpandedRows(prev => ({ ...prev, [w.id]: true }))}
-                  style={{ borderTop: `1px solid ${C.border}`, padding: "3px 12px", fontSize: 10, color: C.mutedDark, cursor: "pointer", display: "flex", gap: 8 }}
+                  style={{ borderTop: `1px solid ${C.border}`, padding: "3px 12px", fontSize: 10, color: C.mutedDark, cursor: "pointer", gap: 8 }}
                 >
                   {w.example?.trim() && <span>📝 veta</span>}
                   {w.synonyms?.trim() && <span>🔤 synonyma</span>}
