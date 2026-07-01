@@ -154,10 +154,10 @@ export function LangDropdown({ langs, activeId, onSwitch, onAddLang, onEditLang,
   return (
     <>
       <div ref={ref} style={{ position: "relative", userSelect: "none" }}>
-        <button className="btn" onClick={() => setOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--lc-dropBg)", border: `1.5px solid ${open ? "#3a5080" : C.border}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", minWidth: 130 }}>
+        <button className="btn" onClick={() => setOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--lc-dropBg)", border: `1.5px solid ${open ? "#3a5080" : C.border}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer" }}>
           <span style={{ fontSize: 20 }}>{active?.flag}</span>
           <span style={{ fontWeight: 700, fontSize: 12, color: C.gold }}>{active?.code || active?.studyCode}</span>
-          <span style={{ fontSize: 12, color: C.muted, flex: 1, textAlign: "left" }}>{active?.label}</span>
+          <span className="lang-label-full" style={{ fontSize: 12, color: C.muted, flex: 1, textAlign: "left" }}>{active?.label}</span>
           <span style={{ fontSize: 10, color: C.muted }}>{open ? "▲" : "▼"}</span>
         </button>
         {open && (

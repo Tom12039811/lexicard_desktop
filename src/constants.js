@@ -277,13 +277,20 @@ export const STYLE = `
   .mob-expand-btn{cursor:default;}
   @media(max-width:640px){
     .stat-grid{grid-template-columns:repeat(3,1fr)!important;}
-    .word-row{grid-template-columns:22px 1fr 1fr 22px!important;}
-    .word-hdr{grid-template-columns:22px 1fr 1fr 22px!important;}
+    .word-row{grid-template-columns:22px 1fr 1fr 36px!important;}
+    .word-hdr{grid-template-columns:22px 1fr 1fr 36px!important;}
     .col-ex,.col-syn{display:none!important;}
     .deck-hdr{flex-wrap:wrap;gap:6px!important;}
     .mob-expand-panel{display:flex!important;}
     .mob-has-extra{display:flex!important;}
     .mob-expand-btn{cursor:pointer!important;font-weight:700;}
+    /* Header — kompaktni verze pro mobil */
+    .lang-label-full{display:none!important;}
+    .profile-name{display:none!important;}
+    .profile-chevron{display:none!important;}
+    /* Slovicka — 16px zabrání auto-zoomu iOS/Android, vyšší řádek aby text nepřečníval */
+    .tdinp{font-size:16px!important;padding:11px 8px!important;}
+    .word-row{min-height:46px;}
   }
   ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--lc-scrollTrack)}::-webkit-scrollbar-thumb{background:var(--lc-scrollThumb);border-radius:2px}
 `;

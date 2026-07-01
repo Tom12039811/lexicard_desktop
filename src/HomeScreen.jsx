@@ -38,10 +38,10 @@ function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLig
           }}
         >
           <span style={{ fontSize: 14 }}>👤</span>
-          <span style={{ maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span className="profile-name" style={{ maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {displayName}
           </span>
-          <span style={{ fontSize: 10, opacity: 0.6 }}>{open ? "▲" : "▼"}</span>
+          <span className="profile-chevron" style={{ fontSize: 10, opacity: 0.6 }}>{open ? "▲" : "▼"}</span>
         </button>
 
         {open && (
@@ -51,6 +51,11 @@ function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLig
             borderRadius: 12, overflow: "hidden", minWidth: 210, zIndex: 50,
             boxShadow: `0 8px 28px var(--lc-shadow)`,
           }}>
+            {/* Jméno uživatele – viditelné v dropdown (vždy, i na mobilu) */}
+            <div style={{ padding: "11px 14px 8px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 15 }}>👤</span>
+              <span style={{ fontSize: 13, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</span>
+            </div>
             {/* Upravit profil */}
             <button
               className="btn"
