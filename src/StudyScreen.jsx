@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { C, STYLE, MODES } from "./constants.js";
-import { parseSyn, comboInfo } from "./utils.js";
+import { parseSyn, comboInfo, isIOS } from "./utils.js";
+import { usePersistentState } from "./hooks.js";
 import { SettingsDropdown, EditWordModal } from "./modals.jsx";
 
 /* ══════════════════════════════════════════════════════════════
@@ -291,8 +292,11 @@ export default function StudyScreen({
   onFlip, onFlipAnswer, onStartListen, onStopListen,
   onSubmitTyped, onDontKnow, onNextCard, onBack,
   onSpeak, onEditWord,
+  ignoreSilent, onSetIgnoreSilent,
 }) {
   const [editWord, setEditWord] = useState(null);
+  // Jednorázová nápověda k tichému režimu (jen iPhone/iPad)
+  const [silentHintSeen, setSilentHintSeen] = usePersistentState("lc6_silentHintSeen", false, v => typeof v === "boolean");
   const w = rWords[rIdx];
   if (!w) return null;
   const ipa = w.ipa || w.phonetic || dictEntry?.ipa || null;
@@ -335,14 +339,30 @@ export default function StudyScreen({
             ...(total > 0 ? [{ bg: "var(--lc-statBg1)", c: "#7090c8", t: `${pct}%` }] : []),
           ].map(({ bg, c, t }, i) => <span key={i} style={{ background: bg, color: c, padding: "2px 7px", borderRadius: 20, fontSize: 11, fontWeight: 500 }}>{t}</span>)}
         </div>
-        <SettingsDropdown autoPlay={autoPlay} onToggle={onSetAutoPlay} playSounds={playSounds} onToggleSounds={onSetPlaySounds} />
+        <SettingsDropdown autoPlay={autoPlay} onToggle={onSetAutoPlay} playSounds={playSounds} onToggleSounds={onSetPlaySounds}
+          ignoreSilent={ignoreSilent} onToggleIgnoreSilent={onSetIgnoreSilent} />
       </div>
+
+      {/* iPhone: nápověda k tichému režimu — zobrazí se jen jednou */}
+      {!silentHintSeen && isIOS() && (
+        <div className="fade-up" style={{ width: "100%", maxWidth: 680, padding: "0.6rem 1rem 0" }}>
+          <div style={{ background: "var(--lc-cardAlt)", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <span style={{ fontSize: 18, lineHeight: 1.2 }}>🔇</span>
+            <div style={{ flex: 1, fontSize: 12.5, color: C.textDim, lineHeight: 1.5 }}>
+              Neslyšíš výslovnost? iPhone v tichém režimu může zvuk aplikace ztlumit. Pomůže vypnout tichý režim nebo připojit sluchátka.
+              {onSetIgnoreSilent && <> Přehrávání v tichém režimu lze zapnout/vypnout v ⚙️.</>}
+            </div>
+            <button className="btn" onClick={() => setSilentHintSeen(true)}
+              style={{ color: C.gold, fontSize: 12, fontWeight: 700, padding: "2px 4px", flexShrink: 0 }}>Rozumím</button>
+          </div>
+        </div>
+      )}
 
       {/* mode tabs */}
       <div style={{ width: "100%", maxWidth: 680, padding: "0.6rem 1rem 0", display: "flex", gap: 5 }}>
         {MODES.map(m => (
           <button key={m.id} className="btn" onClick={() => onSetMode(m.id)}
-            style={{ flex: 1, background: mode === m.id ? "#1e2a45" : C.card, border: `1.5px solid ${mode === m.id ? "#3a5080" : C.border}`, color: mode === m.id ? C.gold : "#6a7080", borderRadius: 9, padding: "6px 3px", fontSize: 12, cursor: "pointer", transition: "all .2s" }}>
+            style={{ flex: 1, background: mode === m.id ? "#1e2a45" : C.card, border: `1.5px solid ${mode === m.id ? "#3a5080" : C.border}`, color: mode === m.id ? C.gold : C.muted, borderRadius: 9, padding: "6px 3px", fontSize: 12, cursor: "pointer", transition: "all .2s" }}>
             {m.label}
           </button>
         ))}
@@ -360,7 +380,7 @@ export default function StudyScreen({
           <div style={{ width: "100%", maxWidth: 680, padding: "0.5rem 1rem 0", display: "flex", gap: 7 }}>
             {opts.map(opt => (
               <button key={opt.dir} className="btn" onClick={() => setDir(opt.dir)}
-                style={{ flex: 1, background: activeDir === opt.dir ? "#1e2a45" : C.card, border: `1.5px solid ${activeDir === opt.dir ? "#3a5080" : C.border}`, color: activeDir === opt.dir ? C.gold : "#6a7080", borderRadius: 10, padding: "9px 8px", fontSize: 13, cursor: "pointer", transition: "all .2s", fontFamily: "'Lora',serif", fontWeight: activeDir === opt.dir ? 600 : 400 }}>
+                style={{ flex: 1, background: activeDir === opt.dir ? "#1e2a45" : C.card, border: `1.5px solid ${activeDir === opt.dir ? "#3a5080" : C.border}`, color: activeDir === opt.dir ? C.gold : C.muted, borderRadius: 10, padding: "9px 8px", fontSize: 13, cursor: "pointer", transition: "all .2s", fontFamily: "'Lora',serif", fontWeight: activeDir === opt.dir ? 600 : 400 }}>
                 {opt.label}
               </button>
             ))}
@@ -432,7 +452,7 @@ export default function StudyScreen({
             <div style={{ display: "flex", background: C.card, border: `1px solid ${C.border}`, borderRadius: 9, padding: 3, gap: 3 }}>
               {[["mic", "🎤 Mikrofon"], ["text", "⌨️ Psát"]].map(([m, lbl]) => (
                 <button key={m} className="btn" onClick={() => { onSetIMode(m); }}
-                  style={{ background: iMode === m ? "#1e2a45" : "transparent", border: iMode === m ? "1px solid #2e4065" : "1px solid transparent", color: iMode === m ? C.gold : "#6a7080", borderRadius: 7, padding: "5px 14px", fontSize: 13, cursor: "pointer" }}>
+                  style={{ background: iMode === m ? "#1e2a45" : "transparent", border: iMode === m ? "1px solid #2e4065" : "1px solid transparent", color: iMode === m ? C.gold : C.muted, borderRadius: 7, padding: "5px 14px", fontSize: 13, cursor: "pointer" }}>
                   {lbl}
                 </button>
               ))}

@@ -5,7 +5,7 @@ import { DEFAULT_LANGS, SAMPLE_WORDS, C, STYLE } from "./constants.js";
 import {
   uid, now, pickRound, vmUpdate, getLevel, calcXP,
   checkStreak, fetchDict, doSpeak, playSound,
-  localMatch, parseSyn,
+  localMatch, parseSyn, setIgnoreSilentMode, audioSessionSupported,
 } from "./utils.js";
 import HomeScreen from "./HomeScreen.jsx";
 import DeckScreen from "./DeckScreen.jsx";
@@ -96,6 +96,9 @@ export default function LexiCard() {
   const [iMode, setIMode]             = usePersistentState("lc6_inputMode", "mic", v => v === "mic" || v === "text");
   const [typed, setTyped]             = useState("");
   const [autoPlay, setAutoPlay]       = usePersistentState("lc6_autoPlay", true, v => typeof v === "boolean");
+  // iPhone: přehrávat i v tichém režimu (Audio Session "playback"); výchozí zapnuto
+  const [ignoreSilent, setIgnoreSilent] = usePersistentState("lc6_ignoreSilent", true, v => typeof v === "boolean");
+  useEffect(() => { setIgnoreSilentMode(ignoreSilent); }, [ignoreSilent]);
   const [playSounds, setPlaySounds]   = useState(() => { try { const v = localStorage.getItem("lc6_playSounds"); return v === null ? true : v === "true"; } catch { return true; } });
   const [pronAtt, setPronAtt]         = useState(0);
   const [evalLoading, setEvalLoading] = useState(false);
@@ -908,6 +911,8 @@ export default function LexiCard() {
       onSetIMode={m => { setIMode(m); setMicErr(""); setTx(""); }}
       onSetTyped={setTyped}
       onSetAutoPlay={setAutoPlay}
+      ignoreSilent={ignoreSilent}
+      onSetIgnoreSilent={audioSessionSupported() ? setIgnoreSilent : null}
       onSetPlaySounds={v => { setPlaySounds(v); try { localStorage.setItem("lc6_playSounds", String(v)); } catch {} }}
       onFlip={() => {
         // Zruš případné probíhající přehrávání před otočením

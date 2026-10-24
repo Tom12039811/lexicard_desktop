@@ -97,8 +97,8 @@ export const STYLE = `
     --lc-goldDim:#7a5818;
     --lc-text:#f0e6d3;
     --lc-textDim:#9a9080;
-    --lc-muted:#5a6070;
-    --lc-mutedDark:#3e4455;
+    --lc-muted:#8a93a6;      /* dříve #5a6070 – kontrast 3.0:1 → 6.2:1 */
+    --lc-mutedDark:#6b7388;  /* dříve #3e4455 – kontrast 2.0:1 → 4.0:1 */
     --lc-ok:#5cb88a;
     --lc-okBg:#0f2018;
     --lc-okBorder:#255030;
@@ -168,8 +168,8 @@ export const STYLE = `
     --lc-goldDim:#c8a060;
     --lc-text:#2a2420;
     --lc-textDim:#6a6058;
-    --lc-muted:#8a8075;
-    --lc-mutedDark:#b0a898;
+    --lc-muted:#6b6258;      /* dříve #8a8075 – kontrast 3.4:1 → 5.3:1 */
+    --lc-mutedDark:#938a7c;  /* dříve #b0a898 – kontrast 2.1:1 → 3.0:1 */
     --lc-ok:#2a7848;
     --lc-okBg:#eaf4ee;
     --lc-okBorder:#90c8a0;

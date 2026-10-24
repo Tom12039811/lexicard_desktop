@@ -310,12 +310,19 @@ export default function DeckScreen({
                 {w.synonyms?.trim()
                   ? <><span style={{ fontSize: 9, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 1.5, display: "block", marginBottom: 2 }}>Synonyma</span>{w.synonyms}</>
                   : <span style={{ fontStyle: "italic", color: C.muted, fontSize: 12 }}>Bez synonym</span>}
+                {w.example?.trim() && (
+                  <div style={{ marginTop: 8 }}>
+                    <span style={{ fontSize: 9, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 1.5, display: "block", marginBottom: 2 }}>Příkladová věta</span>
+                    <span style={{ fontStyle: "italic" }}>„{w.example}“</span>
+                  </div>
+                )}
               </div>
             )}
 
             <div onClick={() => toggleRow(w.id)}
               style={{ borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", minHeight: 26, padding: "0 2px 0 34px", fontSize: 10, color: C.mutedDark, cursor: "pointer" }}>
-              {!expandedRows[w.id] && w.synonyms?.trim() && <span>🔤 synonyma</span>}
+              {!expandedRows[w.id] && w.synonyms?.trim() && <span style={{ marginRight: 10 }}>🔤 synonyma</span>}
+              {!expandedRows[w.id] && w.example?.trim() && <span>💡 věta</span>}
               <span style={{ flex: 1 }} />
               <button className="btn" onClick={e => { e.stopPropagation(); setEditWord(w); }} title="Upravit slovíčko" aria-label="Upravit slovíčko"
                 style={{ fontSize: 12, padding: "4px 12px", opacity: .65, lineHeight: 1 }}>✏️</button>
