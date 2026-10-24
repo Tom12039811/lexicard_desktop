@@ -258,6 +258,17 @@ export function localMatch(given, expected, extra = "") {
   });
 }
 
+/* ── Normalizace pro vyhledávání (bez diakritiky a interpunkce) ── */
+export function normalizeText(str) {
+  return (str || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /* ── Parsování variant (odděleno lomítkem nebo středníkem) ─── */
 export function parseSyn(str) {
   if (!str) return [];

@@ -288,7 +288,7 @@ export const STYLE = `
     .lang-label-full{display:none!important;}
     .profile-name{display:none!important;}
     .profile-chevron{display:none!important;}
-    /* Slovicka — 16px zabrání auto-zoomu iOS/Android, vyšší řádek aby text nepřečníval */
+    /* Slovíčka — 16px zabrání auto-zoomu iOS/Android, vyšší řádek aby text nepřečníval */
     .tdinp{font-size:16px!important;padding:11px 8px!important;}
     .word-row{min-height:46px;}
   }

@@ -560,21 +560,22 @@ export function FolderStatsModal({ folder, decks, onClose }) {
   );
 }
 
-/* ─── Edit Word Modal (study screen) ────────────────────────── */
-// Na mobilu (šířka < 600px) zobrazí pouze EN + CS pole.
-// Na desktopu přidá synonyma a příkladovou větu.
-export function EditWordModal({ word, onClose, onSave }) {
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 600;
+/* ─── Edit Word Modal ───────────────────────────────────────── */
+// Všechna pole (EN, CZ, synonyma, příkladová věta) na všech zařízeních.
+// onDelete (volitelné) → zobrazí tlačítko „Smazat slovíčko“ s potvrzením.
+export function EditWordModal({ word, onClose, onSave, onDelete }) {
   const [f, setF] = useState({
     en:       word.en       ?? "",
     cs:       word.cs       ?? "",
     synonyms: word.synonyms ?? "",
     example:  word.example  ?? "",
   });
+  const [confirmDel, setConfirmDel] = useState(false);
   const upd = k => e => setF(p => ({ ...p, [k]: e.target.value }));
+  const valid = f.en.trim() && f.cs.trim();
 
   function submit() {
-    if (!f.en.trim() || !f.cs.trim()) return;
+    if (!valid) return;
     onSave({
       en:       f.en.trim(),
       cs:       f.cs.trim(),
@@ -585,7 +586,7 @@ export function EditWordModal({ word, onClose, onSave }) {
   }
 
   const labelStyle = { fontSize: 12, color: C.muted, marginBottom: 4 };
-  const valid = f.en.trim() && f.cs.trim();
+  const inpStyle = { fontSize: 16 }; // 16 px = iOS nezoomuje při psaní
 
   return (
     <Modal onClose={onClose}>
@@ -598,31 +599,24 @@ export function EditWordModal({ word, onClose, onSave }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div>
           <div style={labelStyle}>🇬🇧 Anglicky *</div>
-          <input className="inp-sm" value={f.en} onChange={upd("en")} autoFocus
+          <input className="inp-sm" style={inpStyle} value={f.en} onChange={upd("en")} autoFocus={typeof window !== "undefined" && window.innerWidth > 640}
             onKeyDown={e => e.key === "Enter" && document.getElementById("ew-cs")?.focus()} />
         </div>
         <div>
           <div style={labelStyle}>🇨🇿 Česky * <span style={{ fontSize: 11, color: C.mutedDark }}>(nebo: slov1 / slov2)</span></div>
-          <input id="ew-cs" className="inp-sm" value={f.cs} onChange={upd("cs")}
-            onKeyDown={e => {
-              if (e.key === "Enter") {
-                if (!isMobile) document.getElementById("ew-syn")?.focus();
-                else if (valid) submit();
-              }
-            }} />
+          <input id="ew-cs" className="inp-sm" style={inpStyle} value={f.cs} onChange={upd("cs")}
+            onKeyDown={e => e.key === "Enter" && document.getElementById("ew-syn")?.focus()} />
         </div>
-        {!isMobile && (<>
-          <div>
-            <div style={labelStyle}>🔄 Synonyma <span style={{ fontSize: 11, color: C.mutedDark }}>(volitelné)</span></div>
-            <input id="ew-syn" className="inp-sm" value={f.synonyms} onChange={upd("synonyms")}
-              onKeyDown={e => e.key === "Enter" && document.getElementById("ew-ex")?.focus()} />
-          </div>
-          <div>
-            <div style={labelStyle}>💡 Příkladová věta</div>
-            <input id="ew-ex" className="inp-sm" value={f.example} onChange={upd("example")}
-              onKeyDown={e => e.key === "Enter" && submit()} />
-          </div>
-        </>)}
+        <div>
+          <div style={labelStyle}>🔄 Synonyma <span style={{ fontSize: 11, color: C.mutedDark }}>(volitelné)</span></div>
+          <input id="ew-syn" className="inp-sm" style={inpStyle} value={f.synonyms} onChange={upd("synonyms")}
+            onKeyDown={e => e.key === "Enter" && document.getElementById("ew-ex")?.focus()} />
+        </div>
+        <div>
+          <div style={labelStyle}>💡 Příkladová věta</div>
+          <input id="ew-ex" className="inp-sm" style={inpStyle} value={f.example} onChange={upd("example")}
+            onKeyDown={e => e.key === "Enter" && submit()} />
+        </div>
         <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
           <button className="btn" onClick={onClose}
             style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>
@@ -633,6 +627,25 @@ export function EditWordModal({ word, onClose, onSave }) {
             Uložit
           </button>
         </div>
+
+        {onDelete && (
+          <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 6, paddingTop: 12 }}>
+            {!confirmDel ? (
+              <button className="btn" onClick={() => setConfirmDel(true)}
+                style={{ width: "100%", border: "1px solid var(--lc-errBorder)", color: "var(--lc-err)", borderRadius: 9, padding: "9px", fontSize: 13, cursor: "pointer" }}>
+                🗑️ Smazat slovíčko
+              </button>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ flex: 1, fontSize: 13, color: "var(--lc-err)" }}>Opravdu smazat?</span>
+                <button className="btn" onClick={() => setConfirmDel(false)}
+                  style={{ border: `1px solid ${C.border}`, color: C.muted, borderRadius: 8, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>Ne</button>
+                <button className="btn" onClick={() => { onDelete(); onClose(); }}
+                  style={{ background: C.err, color: "#fff", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Smazat</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   );

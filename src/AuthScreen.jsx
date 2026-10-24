@@ -86,10 +86,10 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
   }
 
   function translateError(msg) {
-    if (msg.includes("Invalid login credentials")) return "Spatny email nebo heslo.";
-    if (msg.includes("Email not confirmed")) return "Email neni potvrzeny. Zkontroluj schranku.";
-    if (msg.includes("User already registered")) return "Tento email je jiz registrovan.";
-    if (msg.includes("Password should be")) return "Heslo musi mit alespon 6 znaku.";
+    if (msg.includes("Invalid login credentials")) return "Špatný email nebo heslo.";
+    if (msg.includes("Email not confirmed")) return "Email není potvrzený. Zkontroluj schránku.";
+    if (msg.includes("User already registered")) return "Tento email je již registrován.";
+    if (msg.includes("Password should be")) return "Heslo musí mít alespoň 6 znaků.";
     return msg;
   }
 
@@ -131,7 +131,7 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
           letterSpacing: "-1px",
         }}>LexiCard</div>
         <div style={{ color: "var(--lc-textDim)", fontSize: 14, marginTop: 4 }}>
-          Uc se slovicka chytre
+          Uč se slovíčka chytře
         </div>
       </div>
 
@@ -147,15 +147,15 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
         {isNewPassword ? (
           /* ── New password (recovery) view ── */
           <>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: "0.4rem" }}>Nastav nove heslo</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: "0.4rem" }}>Nastav nové heslo</div>
             <div style={{ fontSize: 13, color: "var(--lc-textDim)", marginBottom: "1.25rem", lineHeight: 1.5 }}>
-              Zadej nove heslo pro svuj ucet.
+              Zadej nové heslo pro svůj účet.
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               <input
                 style={inp}
                 type="password"
-                placeholder="Nove heslo (min. 6 znaku)"
+                placeholder="Nové heslo (min. 6 znaků)"
                 value={newPass1}
                 onChange={e => setNewPass1(e.target.value)}
                 autoComplete="new-password"
@@ -163,7 +163,7 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
               <input
                 style={inp}
                 type="password"
-                placeholder="Zopakuj nove heslo"
+                placeholder="Zopakuj nové heslo"
                 value={newPass2}
                 onChange={e => setNewPass2(e.target.value)}
                 autoComplete="new-password"
@@ -182,7 +182,7 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
               disabled={loading}
               style={{ width: "100%", marginTop: "1rem", padding: "0.8rem", borderRadius: 12, background: C.gold, color: "#fff", fontWeight: 700, fontSize: 15, opacity: loading ? 0.7 : 1 }}
             >
-              {loading ? "Ukladam…" : "Ulozit nove heslo"}
+              {loading ? "Ukládám…" : "Uložit nové heslo"}
             </button>
           </>
         ) : isForgot ? (
@@ -194,17 +194,17 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
                 onClick={() => { setMode("login"); setError(""); setInfo(""); }}
                 style={{ color: "var(--lc-textDim)", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}
               >
-                ← Zpet na prihlaseni
+                ← Zpět na přihlášení
               </button>
             </div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: "0.4rem" }}>Obnova hesla</div>
             <div style={{ fontSize: 13, color: "var(--lc-textDim)", marginBottom: "1.25rem", lineHeight: 1.5 }}>
-              Zadej svuj email a poslem ti odkaz pro nastaveni noveho hesla.
+              Zadej svůj email a pošlu ti odkaz pro nastavení nového hesla.
             </div>
             <input
               style={inp}
               type="email"
-              placeholder="Tvuj email"
+              placeholder="Tvůj email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               autoComplete="email"
@@ -241,7 +241,7 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
                     color: mode === m ? "#fff" : "var(--lc-textDim)",
                     transition: "all .2s",
                   }}
-                >{m === "login" ? "Prihlasit se" : "Registrovat"}</button>
+                >{m === "login" ? "Přihlásit se" : "Registrovat"}</button>
               ))}
             </div>
 
@@ -250,7 +250,7 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
               {mode === "register" && (
                 <input
                   style={inp}
-                  placeholder="Uzivatelske jmeno"
+                  placeholder="Uživatelské jméno"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                   autoComplete="username"
@@ -267,7 +267,7 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
               <input
                 style={inp}
                 type="password"
-                placeholder="Heslo (min. 6 znaku)"
+                placeholder="Heslo (min. 6 znaků)"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
@@ -289,7 +289,7 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
                     padding: 0,
                   }}
                 >
-                  Zapomnel jsem heslo
+                  Zapomněl jsem heslo
                 </button>
               </div>
             )}
@@ -309,7 +309,7 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
               disabled={loading}
               style={{ width: "100%", marginTop: "1rem", padding: "0.8rem", borderRadius: 12, background: C.gold, color: "#fff", fontWeight: 700, fontSize: 15, opacity: loading ? 0.7 : 1 }}
             >
-              {loading ? "Nacitam…" : mode === "login" ? "Prihlasit se" : "Vytvorit ucet"}
+              {loading ? "Načítám…" : mode === "login" ? "Přihlásit se" : "Vytvořit účet"}
             </button>
 
             {/* Divider */}
@@ -328,7 +328,7 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.25 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.57 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
               </svg>
-              Prihlasit pres GitHub
+              Přihlásit přes GitHub
             </button>
           </>
         )}

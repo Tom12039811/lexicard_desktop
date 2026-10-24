@@ -3,6 +3,7 @@ import { C, DECK_SORTS, STYLE } from "./constants.js";
 import { sortDecks, dueCount, getLevel, isMastered } from "./utils.js";
 import { LangDropdown, UploadModal, FolderModal, ConfirmModal, MoveFolderModal, FolderStatsModal } from "./modals.jsx";
 import { supabase } from "./supabase.js";
+import { usePersistentState } from "./hooks.js";
 
 /* ── Profile Dropdown ─────────────────────────────────────────── */
 function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLight }) {
@@ -73,7 +74,7 @@ function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLig
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px" }}>
               <span style={{ fontSize: 15 }}>{lightMode ? "☀️" : "🌙"}</span>
               <span style={{ flex: 1, fontSize: 13, color: C.textDim, fontFamily: "'Lora',serif" }}>
-                {lightMode ? "Svetly rezim" : "Tmavy rezim"}
+                {lightMode ? "Světlý režim" : "Tmavý režim"}
               </span>
               <div
                 onClick={onToggleLight}
@@ -101,7 +102,7 @@ function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLig
               onMouseEnter={e => e.currentTarget.style.background = "var(--lc-errBg)"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
             >
-              <span style={{ fontSize: 15 }}>🚪</span> Odhlasit se
+              <span style={{ fontSize: 15 }}>🚪</span> Odhlásit se
             </button>
           </div>
         )}
@@ -130,12 +131,12 @@ function ProfileModal({ userEmail, username, onClose }) {
   const [tab, setTab] = useState("username"); // "username" | "password"
 
   async function handleSaveUsername() {
-    if (!newUsername.trim()) { setError("Uzivatelske jmeno nemuze byt prazdne."); return; }
+    if (!newUsername.trim()) { setError("Uživatelské jméno nemůže být prázdné."); return; }
     setLoading(true); setError(""); setSuccess("");
     try {
       const { error } = await supabase.auth.updateUser({ data: { username: newUsername.trim() } });
       if (error) throw error;
-      setSuccess("Uzivatelske jmeno bylo zmeneno.");
+      setSuccess("Uživatelské jméno bylo změněno.");
     } catch (e) {
       setError(e.message);
     } finally {
@@ -144,17 +145,17 @@ function ProfileModal({ userEmail, username, onClose }) {
   }
 
   async function handleSavePassword() {
-    if (!currentPassword) { setError("Zadej soucasne heslo."); return; }
-    if (newPassword.length < 6) { setError("Nove heslo musi mit alespon 6 znaku."); return; }
-    if (newPassword !== confirmPassword) { setError("Hesla se neshoduji."); return; }
+    if (!currentPassword) { setError("Zadej současné heslo."); return; }
+    if (newPassword.length < 6) { setError("Nové heslo musí mít alespoň 6 znaků."); return; }
+    if (newPassword !== confirmPassword) { setError("Hesla se neshodují."); return; }
     setLoading(true); setError(""); setSuccess("");
     try {
       // Re-authenticate first
       const { error: signInError } = await supabase.auth.signInWithPassword({ email: userEmail, password: currentPassword });
-      if (signInError) { setError("Soucasne heslo je nespravne."); setLoading(false); return; }
+      if (signInError) { setError("Současné heslo je nesprávné."); setLoading(false); return; }
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
-      setSuccess("Heslo bylo uspesne zmeneno.");
+      setSuccess("Heslo bylo úspěšně změněno.");
       setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
     } catch (e) {
       setError(e.message);
@@ -185,7 +186,7 @@ function ProfileModal({ userEmail, username, onClose }) {
 
         {/* Tabs */}
         <div style={{ display: "flex", background: "var(--lc-cardAlt)", borderRadius: 10, padding: 4, marginBottom: "1.25rem", gap: 4 }}>
-          {[["username", "Jmeno"], ["password", "Heslo"]].map(([id, label]) => (
+          {[["username", "Jméno"], ["password", "Heslo"]].map(([id, label]) => (
             <button key={id} className="btn" onClick={() => { setTab(id); setError(""); setSuccess(""); }}
               style={{ flex: 1, padding: "0.45rem", borderRadius: 8, fontSize: 13, fontWeight: 600,
                 background: tab === id ? C.gold : "transparent",
@@ -197,24 +198,24 @@ function ProfileModal({ userEmail, username, onClose }) {
 
         {tab === "username" ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <input style={inp} placeholder="Uzivatelske jmeno" value={newUsername} onChange={e => setNewUsername(e.target.value)} autoComplete="username" />
+            <input style={inp} placeholder="Uživatelské jméno" value={newUsername} onChange={e => setNewUsername(e.target.value)} autoComplete="username" />
             {error && <div style={{ padding: "0.5rem 0.8rem", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#f87171", fontSize: 13 }}>{error}</div>}
             {success && <div style={{ padding: "0.5rem 0.8rem", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 8, color: "#4ade80", fontSize: 13 }}>{success}</div>}
             <button className="btn" onClick={handleSaveUsername} disabled={loading}
               style={{ padding: "0.75rem", borderRadius: 12, background: C.gold, color: "#fff", fontWeight: 700, fontSize: 14, opacity: loading ? 0.7 : 1 }}>
-              {loading ? "Ukladam…" : "Ulozit jmeno"}
+              {loading ? "Ukládám…" : "Uložit jméno"}
             </button>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <input style={inp} type="password" placeholder="Soucasne heslo" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} autoComplete="current-password" />
-            <input style={inp} type="password" placeholder="Nove heslo (min. 6 znaku)" value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" />
-            <input style={inp} type="password" placeholder="Zopakuj nove heslo" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" />
+            <input style={inp} type="password" placeholder="Současné heslo" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} autoComplete="current-password" />
+            <input style={inp} type="password" placeholder="Nové heslo (min. 6 znaků)" value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" />
+            <input style={inp} type="password" placeholder="Zopakuj nové heslo" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" />
             {error && <div style={{ padding: "0.5rem 0.8rem", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#f87171", fontSize: 13 }}>{error}</div>}
             {success && <div style={{ padding: "0.5rem 0.8rem", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 8, color: "#4ade80", fontSize: 13 }}>{success}</div>}
             <button className="btn" onClick={handleSavePassword} disabled={loading}
               style={{ padding: "0.75rem", borderRadius: 12, background: C.gold, color: "#fff", fontWeight: 700, fontSize: 14, opacity: loading ? 0.7 : 1 }}>
-              {loading ? "Ukladam…" : "Zmenit heslo"}
+              {loading ? "Ukládám…" : "Změnit heslo"}
             </button>
           </div>
         )}
@@ -236,13 +237,14 @@ export default function HomeScreen({
   onClearNewlyDownloaded,
   savedFolderId = null,
 }) {
-  const [sort, setSort] = useState("date-desc");
+  // Řazení balíčků a rozbalení složek si pamatujeme (per zařízení)
+  const [sort, setSort] = usePersistentState("lc6_deckSort", "date-desc", v => typeof v === "string");
   const [showUpload, setShowUpload] = useState(false);
   const [showAddFolder, setShowAddFolder] = useState(false);
   const [editFolder, setEditFolder] = useState(null);
   const [delFolder, setDelFolder] = useState(null);
   const [moveInfo, setMoveInfo] = useState(null);
-  const [openFolders, setOpenFolders] = useState({});
+  const [openFolders, setOpenFolders] = usePersistentState("lc6_openFolders", {}, v => v && typeof v === "object" && !Array.isArray(v));
   const [folderStats, setFolderStats] = useState(null);
 
   // highlight nově stažených balíčků se čistí v App.jsx při odchodu z LibraryScreen
@@ -281,14 +283,14 @@ export default function HomeScreen({
           onMouseLeave={e => { e.currentTarget.style.borderColor = isNew ? "#4a90d9" : C.border; }}>
           {due > 0 && <div style={{ position: "absolute", top: 10, right: 34, background: "var(--lc-dueBg)", border: "1px solid var(--lc-dueBorder)", borderRadius: 20, padding: "2px 7px", fontSize: 10, color: "var(--lc-dueText)", fontWeight: 600 }}>{due} dnes</div>}
           <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4, lineHeight: 1.2, paddingRight: 42, display: "flex", alignItems: "center", gap: 5 }}>
-            {d.fromLibrary && <span title="Stazeno z knihovny" style={{ fontSize: 12, flexShrink: 0 }}>📚</span>}
+            {d.fromLibrary && <span title="Staženo z knihovny" style={{ fontSize: 12, flexShrink: 0 }}>📚</span>}
             <span style={{ fontSize: nameFontSize, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
           </div>
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>{d.words.length} slov · {mastered} zvl.{sr !== null ? ` · ${sr}%` : ""}</div>
           <div style={{ background: "#161e30", borderRadius: 3, height: 3 }}><div style={{ width: `${pct}%`, height: "100%", background: C.gold, borderRadius: 3 }} /></div>
-          <div style={{ fontSize: 10, color: C.goldDim, marginTop: 4, textAlign: "right" }}>{pct}% zvladnuto</div>
+          <div style={{ fontSize: 10, color: C.goldDim, marginTop: 4, textAlign: "right" }}>{pct}% zvládnuto</div>
         </div>
-        <button className="btn" onClick={e => { e.stopPropagation(); setMoveInfo({ deck: d }); }} title="Presunout do slozky"
+        <button className="btn" onClick={e => { e.stopPropagation(); setMoveInfo({ deck: d }); }} title="Přesunout do složky"
           style={{ position: "absolute", top: 8, right: 6, color: C.mutedDark, fontSize: 13, padding: "3px 5px", lineHeight: 1 }}
           onMouseEnter={e => e.currentTarget.style.color = C.gold}
           onMouseLeave={e => e.currentTarget.style.color = C.mutedDark}>📁</button>
@@ -301,9 +303,9 @@ export default function HomeScreen({
       <style>{STYLE}</style>
 
       {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUpload={onFileUpload} />}
-      {showAddFolder && <FolderModal title="Nova slozka" onClose={() => setShowAddFolder(false)} onSave={name => { onAddFolder(name); setShowAddFolder(false); }} />}
-      {editFolder && <FolderModal title="Prejmenovat slozku" initial={editFolder} onClose={() => setEditFolder(null)} onSave={name => { onRenameFolder(editFolder.id, name); setEditFolder(null); }} />}
-      {delFolder && <ConfirmModal title="Smazat slozku?" msg="Balicky ve slozce budou presunuty na hlavni stranku." label="Smazat slozku" onConfirm={() => { onDeleteFolder(delFolder.id); }} onClose={() => setDelFolder(null)} />}
+      {showAddFolder && <FolderModal title="Nová složka" onClose={() => setShowAddFolder(false)} onSave={name => { onAddFolder(name); setShowAddFolder(false); }} />}
+      {editFolder && <FolderModal title="Přejmenovat složku" initial={editFolder} onClose={() => setEditFolder(null)} onSave={name => { onRenameFolder(editFolder.id, name); setEditFolder(null); }} />}
+      {delFolder && <ConfirmModal title="Smazat složku?" msg="Balíčky ve složce budou přesunuty na hlavní stránku." label="Smazat složku" onConfirm={() => { onDeleteFolder(delFolder.id); }} onClose={() => setDelFolder(null)} />}
       {moveInfo && <MoveFolderModal deck={moveInfo.deck} folders={langFolders} currentFolderId={moveInfo.deck.folderId} onClose={() => setMoveInfo(null)} onMove={fid => onMoveDeck(moveInfo.deck.id, fid)} />}
       {folderStats && <FolderStatsModal folder={folderStats} decks={decks} onClose={() => setFolderStats(null)} />}
 
@@ -345,7 +347,7 @@ export default function HomeScreen({
           <div style={{ flexShrink: 0, background: "var(--lc-streakBg)", border: "1px solid var(--lc-streakBorder)", borderRadius: 10, padding: "6px 12px", textAlign: "center" }}>
             <div style={{ fontSize: 16 }}>🔥</div>
             <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700, color: C.gold }}>{streak}</div>
-            <div style={{ fontSize: 9, color: C.muted }}>dni</div>
+            <div style={{ fontSize: 9, color: C.muted }}>dní</div>
           </div>
         )}
         {/* Leaderboard icon — right edge of XP bar */}
@@ -353,7 +355,7 @@ export default function HomeScreen({
           <button
             className="btn"
             onClick={onLeaderboard}
-            title="Zebricek"
+            title="Žebříček"
             style={{
               flexShrink: 0,
               width: 38, height: 38,
@@ -380,7 +382,7 @@ export default function HomeScreen({
           onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = "rgba(212,168,83,.04)"; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--lc-btnAddBorder)"; e.currentTarget.style.background = "var(--lc-btnAddBg)"; }}>
           <div style={{ width: 30, height: 30, background: "var(--lc-cardAlt)", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>📊</div>
-          <div style={{ fontSize: 13, color: C.gold, fontFamily: "'Playfair Display',serif", fontWeight: 700 }}>Pridat balicek</div>
+          <div style={{ fontSize: 13, color: C.gold, fontFamily: "'Playfair Display',serif", fontWeight: 700 }}>Přidat balíček</div>
           <div style={{ marginLeft: "auto", fontSize: 18, color: "var(--lc-btnAddBorder)" }}>+</div>
         </button>
 
@@ -410,13 +412,13 @@ export default function HomeScreen({
           onMouseLeave={e => { e.currentTarget.style.borderColor = "#2a3650"; e.currentTarget.style.background = "var(--lc-btnAddBg)"; }}
         >
           <span style={{ fontSize: 16, filter: "sepia(1) saturate(3) hue-rotate(5deg) brightness(0.75)" }}>📁</span>
-          <span style={{ fontSize: 12, color: C.textDim }}>Nova slozka</span>
+          <span style={{ fontSize: 12, color: C.textDim }}>Nová složka</span>
         </button>
       </div>
 
       {/* ── Sort ── */}
       <div style={{ width: "100%", maxWidth: 780, display: "flex", alignItems: "center", gap: 7, marginBottom: 12, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 2, flexShrink: 0 }}>Radit:</span>
+        <span style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 2, flexShrink: 0 }}>Řadit:</span>
         {DECK_SORTS.map(s => (
           <button key={s.id} className="btn" onClick={() => setSort(s.id)}
             style={{ background: sort === s.id ? "var(--lc-selBg)" : "transparent", border: `1px solid ${sort === s.id ? "var(--lc-selBorder)" : C.border}`, color: sort === s.id ? C.gold : C.muted, borderRadius: 8, padding: "4px 11px", fontSize: 11, cursor: "pointer" }}>
@@ -429,9 +431,9 @@ export default function HomeScreen({
       <div style={{ width: "100%", maxWidth: 780, flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
         {ld.length === 0 ? (
           <div style={{ textAlign: "center", padding: "3rem 0", color: C.muted, fontSize: 14, fontStyle: "italic" }}>
-            Zadne balicky pro {lc?.label}
+            Žádné balíčky pro {lc?.label}
             <div style={{ marginTop: 12 }}>
-              <button className="btn" onClick={onSampleDeck} style={{ background: "var(--lc-cardAlt)", border: `1px solid #2a3650`, color: "var(--lc-muted)", borderRadius: 10, padding: "9px 18px", fontSize: 13, cursor: "pointer" }}>🎓 Nacist ukazkovy balicek</button>
+              <button className="btn" onClick={onSampleDeck} style={{ background: "var(--lc-cardAlt)", border: `1px solid #2a3650`, color: "var(--lc-muted)", borderRadius: 10, padding: "9px 18px", fontSize: 13, cursor: "pointer" }}>🎓 Načíst ukázkový balíček</button>
             </div>
           </div>
         ) : (
@@ -447,14 +449,14 @@ export default function HomeScreen({
                     <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 15, fontWeight: 600, color: C.text, flex: 1 }}>{f.name}</span>
                     <span style={{ fontSize: 11, color: C.muted }}>{fDecks.length} bal.</span>
                     {fDecks.length > 0 && (
-                      <button className="btn" onClick={e => { e.stopPropagation(); onFolderStudy(f.id); }} title="Uceni ze slozky"
+                      <button className="btn" onClick={e => { e.stopPropagation(); onFolderStudy(f.id); }} title="Učení ze složky"
                         style={{ background: "var(--lc-selBg)", border: `1px solid var(--lc-selBorder)`, color: C.gold, borderRadius: 7, padding: "3px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                         onMouseEnter={e => { e.currentTarget.style.background = C.gold; e.currentTarget.style.color = C.bg; }}
                         onMouseLeave={e => { e.currentTarget.style.background = "var(--lc-selBg)"; e.currentTarget.style.color = C.gold; }}>
-                        {savedFolderId === f.id ? "↩ Pokracovat" : "▶ Uceni"}
+                        {savedFolderId === f.id ? "↩ Pokračovat" : "▶ Učení"}
                       </button>
                     )}
-                    <button className="btn" onClick={e => { e.stopPropagation(); setFolderStats(f); }} title="Statistiky slozky"
+                    <button className="btn" onClick={e => { e.stopPropagation(); setFolderStats(f); }} title="Statistiky složky"
                       style={{ border: `1px solid var(--lc-statBg1)`, color: "#7090c8", borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer" }}
                       onMouseEnter={e => e.currentTarget.style.borderColor = "#7090c8"}
                       onMouseLeave={e => e.currentTarget.style.borderColor = "var(--lc-statBg1)"}>
@@ -467,7 +469,7 @@ export default function HomeScreen({
                   {isOpen && (
                     <div className="deck-grid" style={{ padding: "0 10px 10px" }}>
                       {fDecks.length === 0
-                        ? <div style={{ color: C.muted, fontSize: 12, fontStyle: "italic", padding: "8px 4px", gridColumn: "1/-1" }}>Slozka je prazdna — presun sem balicek pomoci 📁</div>
+                        ? <div style={{ color: C.muted, fontSize: 12, fontStyle: "italic", padding: "8px 4px", gridColumn: "1/-1" }}>Složka je prázdná — přesuň sem balíček pomocí 📁</div>
                         : fDecks.map(d => <DeckCard key={d.id} d={d} />)}
                     </div>
                   )}
@@ -476,7 +478,7 @@ export default function HomeScreen({
             })}
             {looseDecks.length > 0 && (
               <div>
-                {langFolders.length > 0 && <div style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Bez slozky</div>}
+                {langFolders.length > 0 && <div style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Bez složky</div>}
                 <div className="deck-grid">
                   {looseDecks.map(d => <DeckCard key={d.id} d={d} />)}
                 </div>

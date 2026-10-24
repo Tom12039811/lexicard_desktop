@@ -18,26 +18,26 @@ function normalize(str) {
 const SORT_OPTIONS = [
   { id: "az",       label: "A → Z" },
   { id: "za",       label: "Z → A" },
-  { id: "level-az", label: "Uroven ↑" },
-  { id: "level-za", label: "Uroven ↓" },
-  { id: "new",      label: "Nejnovejsi" },
-  { id: "old",      label: "Nejstarsi" },
+  { id: "level-az", label: "Úroveň ↑" },
+  { id: "level-za", label: "Úroveň ↓" },
+  { id: "new",      label: "Nejnovější" },
+  { id: "old",      label: "Nejstarší" },
 ];
 
 const LEVEL_ORDER = ["A1","A2","B1","B2","C1","C2"];
 
 const CATEGORIES = [
-  { id: "all",            label: "Vse" },
-  { id: "bezna_anglictina", label: "Bezna anglictina" },
-  { id: "deti",           label: "Deti" },
+  { id: "all",            label: "Vše" },
+  { id: "bezna_anglictina", label: "Běžná angličtina" },
+  { id: "deti",           label: "Děti" },
   { id: "elektrotechnika", label: "Elektrotechnika" },
   { id: "farmacie",       label: "Farmacie" },
-  { id: "medicina",       label: "Medicina" },
-  { id: "strojirstvi",    label: "Strojirstvi" },
+  { id: "medicina",       label: "Medicína" },
+  { id: "strojirstvi",    label: "Strojírenství" },
 ];
 
 const LEVEL_FILTER = [
-  { id: "all", label: "Vse" },
+  { id: "all", label: "Vše" },
   { id: "A1", label: "A1" },
   { id: "A2", label: "A2" },
   { id: "B1", label: "B1" },
@@ -73,7 +73,7 @@ function DeckInfoPopover({ deck }) {
           cursor: "pointer", transition: "all .15s", padding: 0,
           fontFamily: "system-ui, sans-serif",
         }}
-        title="Informace o balicku"
+        title="Informace o balíčku"
       >
         i
       </button>
@@ -103,11 +103,11 @@ function DeckInfoPopover({ deck }) {
               {deck.short_desc}
             </div>
           ) : (
-            <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic" }}>Popis neni k dispozici.</div>
+            <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic" }}>Popis není k dispozici.</div>
           )}
           {deck.level && (
             <div style={{ marginTop: 8, fontSize: 11, color: C.muted }}>
-              Uroven: <span style={{ color: C.gold, fontWeight: 700 }}>{deck.level}</span>
+              Úroveň: <span style={{ color: C.gold, fontWeight: 700 }}>{deck.level}</span>
             </div>
           )}
           {deck.category && (
@@ -160,7 +160,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
       .select("id, name, short_desc, long_desc, word_count, created_at, level, category")
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
-        if (error) setError("Nepodarilo se nacist knihovnu.");
+        if (error) setError("Nepodařilo se načíst knihovnu.");
         else setDecks(data ?? []);
         setLoading(false);
       });
@@ -177,7 +177,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
       .single();
 
     if (error || !data?.words?.length) {
-      alert("Nepodarilo se stahnout karticky.");
+      alert("Nepodařilo se stáhnout kartičky.");
       setDownloading(null);
       return;
     }
@@ -255,18 +255,18 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
           style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.muted, borderRadius: 8, padding: "6px 12px", fontSize: 13, cursor: "pointer" }}
           onMouseEnter={e => e.currentTarget.style.borderColor = C.gold}
           onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-          ← Zpet
+          ← Zpět
         </button>
         <div>
           <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 700, color: C.gold }}>📚 Knihovna</div>
-          <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Verejne sady ke stazeni</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Veřejné sady ke stažení</div>
         </div>
       </div>
 
       {/* Offline warning */}
       {!isOnline && (
         <div style={{ width: "100%", maxWidth: 860, background: "var(--lc-errBg)", border: `1px solid var(--lc-errBorder)`, borderRadius: 12, padding: "14px 18px", marginBottom: "1rem", color: "var(--lc-err)", fontSize: 14 }}>
-          📡 Jsi offline. Knihovna je dostupna pouze pri pripojeni k internetu.
+          📡 Jsi offline. Knihovna je dostupná pouze při připojení k internetu.
         </div>
       )}
 
@@ -304,7 +304,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
             {/* Uroven */}
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 11, color: C.muted, whiteSpace: "nowrap" }}>Uroven:</span>
+              <span style={{ fontSize: 11, color: C.muted, whiteSpace: "nowrap" }}>Úroveň:</span>
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {LEVEL_FILTER.map(l => (
                   <button key={l.id} className="btn" onClick={() => setFilterLevel(l.id)}
@@ -339,7 +339,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
       {loading && (
         <div style={{ marginTop: "4rem", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
           <div style={{ width: 32, height: 32, border: `3px solid var(--lc-inputBorder)`, borderTopColor: C.gold, borderRadius: "50%", animation: "spin .8s linear infinite" }} />
-          <div style={{ color: C.muted, fontSize: 13 }}>Nacitam knihovnu…</div>
+          <div style={{ color: C.muted, fontSize: 13 }}>Načítám knihovnu…</div>
         </div>
       )}
       {!loading && error && (
@@ -347,7 +347,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
       )}
       {!loading && !error && isOnline && filtered.length === 0 && (
         <div style={{ color: C.muted, fontSize: 14, fontStyle: "italic", marginTop: "3rem" }}>
-          {search || filterLevel !== "all" || filterCategory !== "all" ? "Zadne sady neodpovidaji filtrum." : "Knihovna je zatim prazdna."}
+          {search || filterLevel !== "all" || filterCategory !== "all" ? "Žádné sady neodpovídají filtrům." : "Knihovna je zatím prázdná."}
         </div>
       )}
 
@@ -417,7 +417,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
                   }}
                   onMouseEnter={e => { if (!isDone && !isLoading) { e.currentTarget.style.background = C.gold; e.currentTarget.style.color = C.bg; } }}
                   onMouseLeave={e => { if (!isDone && !isLoading) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.gold; } }}>
-                  {isLoading ? "Stahuji…" : isDone ? "✓ Stazeno" : "⬇ Stahnout"}
+                  {isLoading ? "Stahuji…" : isDone ? "✓ Staženo" : "⬇ Stáhnout"}
                 </button>
               </div>
             );

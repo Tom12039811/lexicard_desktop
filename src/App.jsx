@@ -16,6 +16,7 @@ import { supabase } from "./supabase.js";
 import { runSync, syncProfile } from "./sync.js";
 import LibraryScreen from "./LibraryScreen.jsx";
 import LeaderboardScreen from "./LeaderboardScreen.jsx";
+import { usePersistentState } from "./hooks.js";
 
 /* ── helpers ── */
 function buildDailyPool(words) {
@@ -76,9 +77,11 @@ export default function LexiCard() {
   const [studyFolderId, setStudyFolderId] = useState(null); // null = single deck, string = folder id
 
   /* ── study state ── */
-  const [mode, setMode]               = useState("transl");
-  const [translDir, setTranslDir]     = useState("en-cs");
-  const [flipDir, setFlipDir]         = useState("en-cs");
+  // Nastavení učení si pamatujeme mezi sezeními (per zařízení)
+  const isDir = v => v === "en-cs" || v === "cs-en";
+  const [mode, setMode]               = usePersistentState("lc6_mode", "transl", v => ["transl", "pron", "flip"].includes(v));
+  const [translDir, setTranslDir]     = usePersistentState("lc6_translDir", "en-cs", isDir);
+  const [flipDir, setFlipDir]         = usePersistentState("lc6_flipDir", "en-cs", isDir);
   const [rWords, setRWords]           = useState([]);
   const [rIdx, setRIdx]               = useState(0);
   const [rStats, setRStats]           = useState({ ok: 0, bad: 0, xp: 0 });
@@ -90,9 +93,9 @@ export default function LexiCard() {
   const [tx, setTx]                   = useState("");
   const [micSt, setMicSt]             = useState("idle");
   const [micErr, setMicErr]           = useState("");
-  const [iMode, setIMode]             = useState("mic");
+  const [iMode, setIMode]             = usePersistentState("lc6_inputMode", "mic", v => v === "mic" || v === "text");
   const [typed, setTyped]             = useState("");
-  const [autoPlay, setAutoPlay]       = useState(true);
+  const [autoPlay, setAutoPlay]       = usePersistentState("lc6_autoPlay", true, v => typeof v === "boolean");
   const [playSounds, setPlaySounds]   = useState(() => { try { const v = localStorage.getItem("lc6_playSounds"); return v === null ? true : v === "true"; } catch { return true; } });
   const [pronAtt, setPronAtt]         = useState(0);
   const [evalLoading, setEvalLoading] = useState(false);
@@ -211,12 +214,36 @@ export default function LexiCard() {
     }
   }, []);
 
+  // Ukládání do localStorage se zpožděním 400 ms — při psaní v řádku se nezapisuje
+  // celý dataset po každém písmenu. Při skrytí/zavření stránky se uloží okamžitě.
+  const saveTimerRef   = useRef(null);
+  const pendingSaveRef = useRef(null);
   useEffect(() => {
-    if (loaded) {
-      try { localStorage.setItem("lc6_data", JSON.stringify({ decks, lang: activeLang, langs: langs.filter(l => l.custom), gameStats, folders })); } catch {}
-      try { localStorage.setItem("lc6_playSounds", String(playSounds)); } catch {}
-    }
-  }, [decks, activeLang, langs, loaded, gameStats, folders]);
+    if (!loaded) return;
+    pendingSaveRef.current = () => {
+      try { localStorage.setItem("lc6_data", JSON.stringify({ decks, lang: activeLang, langs: langs.filter(l => l.custom), gameStats, folders })); } catch { /* úložiště plné/nedostupné */ }
+      try { localStorage.setItem("lc6_playSounds", String(playSounds)); } catch { /* ignore */ }
+    };
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => { pendingSaveRef.current?.(); pendingSaveRef.current = null; }, 400);
+  }, [decks, activeLang, langs, loaded, gameStats, folders]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const flush = () => {
+      if (!pendingSaveRef.current) return;
+      clearTimeout(saveTimerRef.current);
+      pendingSaveRef.current();
+      pendingSaveRef.current = null;
+    };
+    const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      flush();
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
 
   /* ── dict fetch ── */
   useEffect(() => {
@@ -838,9 +865,8 @@ export default function LexiCard() {
       <DeckScreen
         deck={deck} langCfg={lc} hasSavedSession={hasSavedSession}
         onBack={() => setScreen("home")} onStart={startStudy} onResume={() => resumeStudy(decks)}
-        onUpdate={updWord} onAddWord={addWord} onDeleteWord={delWord}
+        onUpdate={updWord} onAddWord={addWord} onDeleteWord={delWord} onEditWord={editWordInDecks}
         onDeleteDeck={delDeck} onRename={renameDeck} onResetStats={resetStats} onExport={exportDeck}
-        lightMode={lightMode} onToggleLight={toggleLight}
       />
     );
   }
