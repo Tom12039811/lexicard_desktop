@@ -6,7 +6,14 @@ import { supabase } from "./supabase.js";
 import { usePersistentState } from "./hooks.js";
 
 /* ── Profile Dropdown ─────────────────────────────────────────── */
-function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLight }) {
+function fmtSyncTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso), n = new Date();
+  const hm = d.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
+  return d.toDateString() === n.toDateString() ? hm : `${d.getDate()}. ${d.getMonth() + 1}. ${hm}`;
+}
+
+function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLight, syncInfo, onSyncNow, onExportBackup, getPendingCount }) {
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const ref = useRef(null);
@@ -38,7 +45,7 @@ function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLig
             transition: "all .2s",
           }}
         >
-          <span style={{ fontSize: 14 }}>👤</span>
+          <span style={{ fontSize: 14, position: "relative" }}>👤{syncInfo?.state === "error" && <span style={{ position: "absolute", top: -2, right: -4, width: 7, height: 7, borderRadius: "50%", background: "var(--lc-err)" }} />}</span>
           <span className="profile-name" style={{ maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {displayName}
           </span>
@@ -57,6 +64,29 @@ function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLig
               <span style={{ fontSize: 15 }}>👤</span>
               <span style={{ fontSize: 13, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</span>
             </div>
+            {/* Stav synchronizace */}
+            {syncInfo && (() => {
+              const pending = getPendingCount?.() ?? 0;
+              const st = syncInfo.state;
+              const label = st === "syncing" ? "⟳ Synchronizuji…"
+                : st === "error" ? "⚠️ Synchronizace selhala"
+                : st === "offline" ? "📡 Offline – odešle se později"
+                : pending > 0 ? `⏳ Čeká na odeslání: ${pending}`
+                : syncInfo.lastSyncAt ? `☁️ Synchronizováno ${fmtSyncTime(syncInfo.lastSyncAt)}`
+                : "☁️ Zatím nesynchronizováno";
+              return (
+                <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: 12.5, color: st === "error" ? C.err : C.textDim }}>{label}</div>
+                  {st === "error" && syncInfo.error && (
+                    <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3, wordBreak: "break-word" }}>{String(syncInfo.error).slice(0, 140)}</div>
+                  )}
+                  <button className="btn" disabled={st === "syncing"} onClick={() => onSyncNow?.()}
+                    style={{ marginTop: 7, border: `1px solid ${C.border}`, color: C.gold, borderRadius: 7, padding: "4px 10px", fontSize: 12, opacity: st === "syncing" ? .5 : 1 }}>
+                    ⟳ Synchronizovat teď
+                  </button>
+                </div>
+              );
+            })()}
             {/* Upravit profil */}
             <button
               className="btn"
@@ -67,6 +97,19 @@ function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLig
             >
               <span style={{ fontSize: 15 }}>✏️</span> Upravit profil
             </button>
+
+            {/* Záloha */}
+            {onExportBackup && (
+              <button
+                className="btn"
+                onClick={() => { onExportBackup(); setOpen(false); }}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.textDim, fontSize: 13, textAlign: "left", borderTop: `1px solid ${C.border}` }}
+                onMouseEnter={e => e.currentTarget.style.background = "var(--lc-dropHover)"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                <span style={{ fontSize: 15 }}>💾</span> Stáhnout zálohu (JSON)
+              </button>
+            )}
 
             <div style={{ borderTop: `1px solid ${C.border}` }} />
 
@@ -236,6 +279,7 @@ export default function HomeScreen({
   newlyDownloaded = new Set(),
   onClearNewlyDownloaded,
   savedFolderId = null,
+  syncInfo, onSyncNow, onExportBackup, getPendingCount,
 }) {
   // Řazení balíčků a rozbalení složek si pamatujeme (per zařízení)
   const [sort, setSort] = usePersistentState("lc6_deckSort", "date-desc", v => typeof v === "string");
@@ -324,6 +368,10 @@ export default function HomeScreen({
               onLogout={onLogout}
               lightMode={lightMode}
               onToggleLight={onToggleLight}
+              syncInfo={syncInfo}
+              onSyncNow={onSyncNow}
+              onExportBackup={onExportBackup}
+              getPendingCount={getPendingCount}
             />
           )}
         </div>

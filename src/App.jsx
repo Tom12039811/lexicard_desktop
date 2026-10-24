@@ -13,7 +13,8 @@ import StudyScreen, { RoundEnd, DailyDoneScreen } from "./StudyScreen.jsx";
 import { OnboardingModal, EnVoiceWarningModal } from "./modals.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import { supabase } from "./supabase.js";
-import { runSync, syncProfile } from "./sync.js";
+import { runSync, getSyncMeta, addTombstones, tombstoneCount } from "./sync.js";
+import { reconcileDecks, reconcileList, countDirty } from "./syncMerge.js";
 import LibraryScreen from "./LibraryScreen.jsx";
 import LeaderboardScreen from "./LeaderboardScreen.jsx";
 import { usePersistentState } from "./hooks.js";
@@ -120,49 +121,104 @@ export default function LexiCard() {
   // zavolal verzi se starými rStats a poslední odpověď kola by se nezapočítala.
   const nextCardRef = useRef(null);
 
-  /* ── sync stav ── */
-  const [syncStatus, setSyncStatus] = useState(null);
+  /* ── synchronizace (F4) ── */
+  const [syncStatus, setSyncStatus] = useState(null);      // text lišty dole (jen úplná synchronizace)
+  const [syncInfo, setSyncInfo]     = useState({ state: "idle", lastSyncAt: null, error: null });
+  const stateRef   = useRef({ decks: [], folders: [], gameStats: {} });
+  const sessionRef = useRef(session);
+  const syncingRef = useRef(false);
+  const queuedRef  = useRef(null);        // "quick" | "full" – sync vyžádaný během běžícího syncu
+  useEffect(() => { stateRef.current = { decks, folders, gameStats }; sessionRef.current = session; });
 
-  async function triggerSync(currentSession, currentDecks, currentGameStats) {
-    const userId   = currentSession?.user?.id;
-    const username = currentSession?.user?.user_metadata?.username;
+  async function triggerSync({ full = false } = {}) {
+    const s = sessionRef.current;
+    const userId = s?.user?.id;
     if (!userId) return;
+    if (syncingRef.current) { queuedRef.current = (full || queuedRef.current === "full") ? "full" : "quick"; return; }
+    syncingRef.current = true;
+    setSyncInfo(i => ({ ...i, state: "syncing", lastSyncAt: i.lastSyncAt ?? getSyncMeta(userId).lastSyncAt }));
 
-    // Zajisti profil v DB (potřeba pro žebříček)
-    if (username) syncProfile(userId, username);
+    const snap = stateRef.current;   // snímek na začátku – výsledek se s ním porovná (reconcile)
+    const username = s.user.user_metadata?.username || s.user.email?.split("@")[0];
+    const res = await runSync(snap, { userId, username, full, onProgress: full ? setSyncStatus : undefined });
 
-    const result = await runSync(
-      { decks: currentDecks, gameStats: currentGameStats },
-      userId,
-      setSyncStatus
-    );
-    if (result) {
-      setDecks(result.decks);
-      setGameStats(result.gameStats);
+    if (res.ok) {
+      // změny provedené během syncu zůstanou zachované (odešlou se příště)
+      setDecks(prev => reconcileDecks(prev, snap.decks, res.decks));
+      setFolders(prev => reconcileList(prev, snap.folders, res.folders));
+      setGameStats(prev => (prev === snap.gameStats ? res.gameStats : prev));
+      setSyncInfo({ state: "ok", lastSyncAt: res.syncedAt, error: null });
+    } else {
+      setSyncInfo(i => ({ ...i, state: res.error === "offline" ? "offline" : "error", error: res.error }));
     }
+    syncingRef.current = false;
+    const q = queuedRef.current;
+    queuedRef.current = null;
+    if (q) triggerSync({ full: q === "full" });
   }
 
-  /* Sync po přihlášení */
+  /* Úplná synchronizace po přihlášení / startu aplikace */
   const prevSessionRef = useRef(undefined);
   useEffect(() => {
     const wasNull = prevSessionRef.current === null || prevSessionRef.current === undefined;
     const isLoggedIn = session != null;
     prevSessionRef.current = session;
     if (wasNull && isLoggedIn && loaded) {
-      triggerSync(session, decks, gameStats);
+      triggerSync({ full: true });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, loaded]);
 
-  /* Sync při obnovení připojení */
+  /* Rychlá synchronizace: po obnovení připojení, při návratu do aplikace a při jejím opuštění */
   useEffect(() => {
-    function handleOnline() {
-      if (session?.user?.id) triggerSync(session, decks, gameStats);
-    }
-    window.addEventListener("online", handleOnline);
-    return () => window.removeEventListener("online", handleOnline);
+    const onOnline = () => triggerSync();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const last = getSyncMeta(sessionRef.current?.user?.id).lastSyncAt;
+        if (!last || Date.now() - new Date(last).getTime() > 60000) triggerSync();
+      } else if (countDirty(stateRef.current, tombstoneCount()) > 0) {
+        triggerSync();   // best-effort – iOS může síť při uspání aplikace přerušit
+      }
+    };
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, decks, gameStats]);
+  }, []);
+
+  /* Rychlá synchronizace 20 s po poslední změně (nejpozději 2 min od první neodeslané změny) */
+  const firstDirtyRef = useRef(null);
+  useEffect(() => {
+    if (!loaded || !session?.user?.id) return;
+    if (countDirty({ decks, folders, gameStats }, tombstoneCount()) === 0) { firstDirtyRef.current = null; return; }
+    const now = Date.now();
+    if (!firstDirtyRef.current) firstDirtyRef.current = now;
+    const delay = Math.max(0, Math.min(20000, firstDirtyRef.current + 120000 - now));
+    const t = setTimeout(() => { firstDirtyRef.current = null; triggerSync(); }, delay);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [decks, folders, gameStats, loaded, session]);
+
+  /* Záloha všech dat do souboru JSON */
+  function exportBackup() {
+    const data = {
+      app: "LexiCard", version: 1, exportedAt: new Date().toISOString(),
+      user: session?.user?.email ?? null,
+      decks, folders, gameStats, activeLang, langs: langs.filter(l => l.custom),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lexicard-zaloha-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
 
   /* ── localStorage load ── */
   useEffect(() => {
@@ -172,10 +228,14 @@ export default function LexiCard() {
         const d = JSON.parse(raw);
         if (d.decks) {
           // Migrace: synonyms mohly být uloženy jako pole (z Supabase JSONB) — normalizuj na string
+          // + F4: každá položka musí mít updatedAt (jinak by se pořád jevila jako neodeslaná)
+          const fallbackTs = new Date().toISOString();
           const migratedDecks = d.decks.map(deck => ({
             ...deck,
+            updatedAt: deck.updatedAt ?? fallbackTs,
             words: (deck.words || []).map(w => ({
               ...w,
+              updatedAt: w.updatedAt ?? deck.updatedAt ?? fallbackTs,
               synonyms: Array.isArray(w.synonyms) ? w.synonyms.join(", ") : (w.synonyms ?? ""),
             })),
           }));
@@ -184,7 +244,7 @@ export default function LexiCard() {
         if (d.lang)      setLang(d.lang);
         if (d.langs)     setLangs(p => { const ids = new Set(p.map(l => l.id)); return [...p, ...d.langs.filter(l => !ids.has(l.id))]; });
         if (d.gameStats) setGameStats(d.gameStats);
-        if (d.folders)   setFolders(d.folders);
+        if (d.folders)   setFolders(d.folders.map(f => (f.updatedAt ? f : { ...f, updatedAt: new Date(f.createdAt || Date.now()).toISOString() })));
       } else {
         setShowOnboarding(true);
       }
@@ -309,7 +369,8 @@ export default function LexiCard() {
   function addWord({ en, cs, example, synonyms }) {
     setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), words: [...d.words, { id: uid(), en, cs, example, synonyms: synonyms || "", score: 0, addedAt: now(), vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 }, updatedAt: new Date().toISOString() }] }));
   }
-  const delWord   = wid  => setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), words: d.words.filter(w => w.id !== wid) }));
+  const delWord   = wid  => { addTombstones("cards", [wid]); delWordLocal(wid); };
+  const delWordLocal = wid => setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), words: d.words.filter(w => w.id !== wid) }));
   function editWordInDecks(wid, data) {
     // Funguje i pro folder study — prohledá všechny balíčky
     setDecks(ds => ds.map(d => ({
@@ -322,20 +383,9 @@ export default function LexiCard() {
   }
   function delDeck() {
     if (!deckId) return;
-    // 1. Zapamatuj si smazané ID aby ho sync znovu nestáhl ze Supabase
-    try {
-      const raw = localStorage.getItem("lc6_deletedDecks");
-      const deleted = new Set(raw ? JSON.parse(raw) : []);
-      deleted.add(deckId);
-      localStorage.setItem("lc6_deletedDecks", JSON.stringify([...deleted]));
-    } catch {}
-    // 2. Fyzicky smaž ze Supabase (cards nejdřív kvůli FK)
-    if (session?.user?.id) {
-      supabase.from("cards").delete().eq("deck_id", deckId).then(() => {
-        supabase.from("decks").delete().eq("id", deckId);
-      });
-    }
-    // 3. Odstraň lokálně
+    // Balíček se v Supabase označí jako smazaný (deleted_at) při příští synchronizaci
+    // → smaže se i na ostatních zařízeních a už se znovu nenahraje.
+    addTombstones("decks", [deckId]);
     setDecks(ds => ds.filter(d => d.id !== deckId));
     setScreen("home");
   }
@@ -350,13 +400,15 @@ export default function LexiCard() {
   function resetStats()     { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 }, words: d.words.map(w => ({ ...w, score: 0, vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 }, updatedAt: new Date().toISOString() })) })); }
   function addLang(l)       { setLangs(ls => [...ls, l]); setLang(l.id); }
   function editLang(u)      { setLangs(ls => ls.map(l => l.id === u.id ? u : l)); }
-  function deleteLang(id)   { setDecks(ds => ds.filter(d => d.lang !== id)); setFolders(fs => fs.filter(f => f.lang !== id)); setLangs(ls => ls.filter(l => l.id !== id)); if (activeLang === id) { const rem = langs.filter(l => l.id !== id); if (rem.length) setLang(rem[0].id); } }
+  function deleteLang(id)   { addTombstones("decks", decks.filter(d => d.lang === id).map(d => d.id)); addTombstones("folders", folders.filter(f => f.lang === id).map(f => f.id)); setDecks(ds => ds.filter(d => d.lang !== id)); setFolders(fs => fs.filter(f => f.lang !== id)); setLangs(ls => ls.filter(l => l.id !== id)); if (activeLang === id) { const rem = langs.filter(l => l.id !== id); if (rem.length) setLang(rem[0].id); } }
 
   /* ── folder ops ── */
-  function addFolder(name)          { setFolders(fs => [...fs, { id: uid(), name, lang: activeLang, createdAt: now() }]); }
-  function renameFolder(fid, name)  { setFolders(fs => fs.map(f => f.id === fid ? { ...f, name } : f)); }
-  function deleteFolder(fid)        { setFolders(fs => fs.filter(f => f.id !== fid)); setDecks(ds => ds.map(d => d.folderId === fid ? { ...d, folderId: null } : d)); }
-  function moveDeck(did, folderId)  { setDecks(ds => ds.map(d => d.id === did ? { ...d, folderId: folderId ?? null } : d)); }
+  // updatedAt u složek a přesunů → změny se synchronizují (F4)
+  const isoNow = () => new Date().toISOString();
+  function addFolder(name)          { setFolders(fs => [...fs, { id: uid(), name, lang: activeLang, createdAt: now(), updatedAt: isoNow() }]); }
+  function renameFolder(fid, name)  { setFolders(fs => fs.map(f => f.id === fid ? { ...f, name, updatedAt: isoNow() } : f)); }
+  function deleteFolder(fid)        { addTombstones("folders", [fid]); setFolders(fs => fs.filter(f => f.id !== fid)); setDecks(ds => ds.map(d => d.folderId === fid ? { ...d, folderId: null, updatedAt: isoNow() } : d)); }
+  function moveDeck(did, folderId)  { setDecks(ds => ds.map(d => d.id === did ? { ...d, folderId: folderId ?? null, updatedAt: isoNow() } : d)); }
 
   /* ── export ── */
   function exportDeck() {
@@ -825,6 +877,10 @@ export default function LexiCard() {
         }}
         savedFolderId={restoreSession(decks)?.folderId ?? null}
         onLogout={() => supabase.auth.signOut()}
+        syncInfo={syncInfo}
+        onSyncNow={() => triggerSync({ full: true })}
+        onExportBackup={exportBackup}
+        getPendingCount={() => countDirty(stateRef.current, tombstoneCount())}
         userEmail={session?.user?.email}
         username={session?.user?.user_metadata?.username}
         onLibrary={() => setScreen("library")}
