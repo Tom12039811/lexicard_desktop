@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { C, STYLE } from "./constants.js";
-import { sortWords, dueCount, isMastered, normalizeText } from "./utils.js";
+import { C } from "./constants.js";
+import { sortWords, dueCount, isMastered, isProblem, normalizeText } from "./utils.js";
 import { AddWordModal, StatsModal, ConfirmModal, RenameModal, EditWordModal } from "./modals.jsx";
 import { usePersistentState, useIsMobile } from "./hooks.js";
 
@@ -91,18 +91,14 @@ function DeckSettingsDropdown({ onDelete, onExport, hideExport }) {
           {!hideExport && (
             <>
               <button className="btn" onClick={() => { onExport(); setOpen(false); }}
-                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.textDim, fontSize: 13, textAlign: "left", transition: "background .15s" }}
-                onMouseEnter={e => e.currentTarget.style.background = "var(--lc-dropHover)"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.textDim, fontSize: 13, textAlign: "left", transition: "background .15s" }} data-hover="menu">
                 <span style={{ fontSize: 16 }}>📥</span> Export do Excelu
               </button>
               <div style={{ borderTop: `1px solid ${C.border}` }} />
             </>
           )}
           <button className="btn" onClick={() => { onDelete(); setOpen(false); }}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.err, fontSize: 13, textAlign: "left", transition: "background .15s" }}
-            onMouseEnter={e => e.currentTarget.style.background = "var(--lc-errBg)"}
-            onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.err, fontSize: 13, textAlign: "left", transition: "background .15s" }} data-hover="danger">
             <span style={{ fontSize: 16 }}>🗑️</span> Smazat balíček
           </button>
         </div>
@@ -117,6 +113,7 @@ export default function DeckScreen({
   onBack, onStart, onResume,
   onUpdate, onAddWord, onDeleteWord, onEditWord,
   onDeleteDeck, onRename, onResetStats, onExport,
+  onStartProblems,
 }) {
   const isMobile = useIsMobile();
   // Řazení slov si pamatujeme (globálně pro všechny balíčky, per zařízení)
@@ -154,10 +151,12 @@ export default function DeckScreen({
   ];
 
   const studyBtnFlex = isMobile ? 1 : "0 0 auto";
+  // Trénink chyb: poměry šířek tlačítek (mřížka) – [Chyby 1 : Učení 2], s Pokračovat [2 : 1 : 2]
+  const problemCount = deck.words.filter(isProblem).length;
+  const showProb = problemCount > 0 && !!onStartProblems;
 
   return (
-    <div style={{ minHeight: "100dvh", background: C.bg, fontFamily: "'Lora',Georgia,serif", color: C.text, display: "flex", flexDirection: "column", overscrollBehavior: "none" }}>
-      <style>{STYLE}</style>
+    <div className="lc-screen" style={{ display: "flex", flexDirection: "column"  }}>
 
       {showAdd && <AddWordModal onClose={() => setShowAdd(false)} onAdd={onAddWord} />}
       {showStats && <StatsModal deck={deck} onClose={() => setShowStats(false)} onReset={() => { onResetStats(); setShowStats(false); }} />}
@@ -200,16 +199,24 @@ export default function DeckScreen({
             </div>
           )}
 
-          {/* Řádek 4: Pokračovat / Učení */}
-          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          {/* Řádek 4: Pokračovat / Chyby / Učení */}
+          <div style={showProb
+            ? { display: "grid", gridTemplateColumns: hasSavedSession ? "minmax(0,2fr) minmax(0,1fr) minmax(0,2fr)" : "minmax(0,1fr) minmax(0,2fr)", gap: 6, width: "100%", maxWidth: isMobile ? "none" : 460, marginLeft: "auto" }
+            : { display: "flex", gap: 6, justifyContent: "flex-end" }}>
             {hasSavedSession && (
               <button className="btn" onClick={onResume}
-                style={{ flex: studyBtnFlex, background: "var(--lc-selBg)", border: `1px solid var(--lc-selBorder)`, color: "#7090c8", borderRadius: 9, padding: "9px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                style={{ flex: showProb ? 2 : studyBtnFlex, minWidth: 0, background: "var(--lc-selBg)", border: `1px solid var(--lc-selBorder)`, color: "#7090c8", borderRadius: 9, padding: showProb ? "9px 4px" : "9px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
                 ↩ Pokračovat
               </button>
             )}
+            {showProb && (
+              <button className="btn" onClick={onStartProblems} title="Trénuj problémová slova (aspoň 2× špatně, krabička 1–2)"
+                style={{ flex: 1, minWidth: 0, background: "var(--lc-errBg)", border: "1px solid var(--lc-errBorder)", color: "var(--lc-err)", borderRadius: 9, padding: "9px 4px", fontSize: 14, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {hasSavedSession ? `⚠️ ${problemCount}` : `⚠️ Chyby ${problemCount}`}
+              </button>
+            )}
             <button className="btn" onClick={onStart} disabled={!deck.words.length}
-              style={{ flex: studyBtnFlex, background: deck.words.length ? C.gold : "var(--lc-mutedDark)", color: deck.words.length ? C.bg : C.muted, borderRadius: 9, padding: "9px 20px", fontSize: 14, fontWeight: 700, cursor: deck.words.length ? "pointer" : "default" }}>
+              style={{ flex: showProb ? 2 : studyBtnFlex, minWidth: 0, background: deck.words.length ? C.gold : "var(--lc-mutedDark)", color: deck.words.length ? C.bg : C.muted, borderRadius: 9, padding: showProb ? "9px 4px" : "9px 20px", fontSize: 14, fontWeight: 700, cursor: deck.words.length ? "pointer" : "default" }}>
               Učení ▶
             </button>
           </div>
@@ -229,7 +236,7 @@ export default function DeckScreen({
 
       {/* Řazení + statistiky + přidat slovo */}
       <div style={{ maxWidth: 1020, margin: "0 auto", width: "100%", padding: "0.7rem 1rem 0", display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 2, flexShrink: 0 }}>Řadit:</span>
+        <span className="lc-label" style={{ flexShrink: 0 }}>Řadit:</span>
         <select value={wSort} onChange={e => setWSort(e.target.value)}
           style={{ background: C.card, border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 8, padding: "5px 10px", fontSize: isMobile ? 16 : 12, fontFamily: "'Lora',serif", cursor: "pointer", outline: "none" }}>
           {[
@@ -239,6 +246,7 @@ export default function DeckScreen({
             { id: "cs-asc",    label: `${langCfg?.nativeCode || "CS"} ↑` },
             { id: "cs-desc",   label: `${langCfg?.nativeCode || "CS"} ↓` },
             { id: "date-desc", label: "Datum ↓" },
+            { id: "problem",   label: "Problémová" },
           ].map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
 
@@ -321,6 +329,7 @@ export default function DeckScreen({
 
             <div onClick={() => toggleRow(w.id)}
               style={{ borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", minHeight: 26, padding: "0 2px 0 34px", fontSize: 10, color: C.mutedDark, cursor: "pointer" }}>
+              {isProblem(w) && <span style={{ marginRight: 10, color: "var(--lc-err)" }} title="Problémové slovo: aspoň 2× špatně, krabička 1–2">⚠️ problémové</span>}
               {!expandedRows[w.id] && w.synonyms?.trim() && <span style={{ marginRight: 10 }}>🔤 synonyma</span>}
               {!expandedRows[w.id] && w.example?.trim() && <span>💡 věta</span>}
               <span style={{ flex: 1 }} />
@@ -332,7 +341,9 @@ export default function DeckScreen({
           /* ── DESKTOP: úpravy přímo v řádku (beze změny), ✕ smaže ── */
           <div key={w.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden" }}>
             <div className="word-row" style={{ alignItems: "center" }}>
-              <span style={{ fontSize: 10, color: C.muted, textAlign: "center", userSelect: "none", lineHeight: 1 }}>{n}</span>
+              {isProblem(w)
+                ? <span title="Problémové slovo: aspoň 2× špatně, krabička 1–2" style={{ fontSize: 10, color: "var(--lc-err)", fontWeight: 700, textAlign: "center", userSelect: "none", lineHeight: 1.1 }}>⚠<br />{n}</span>
+                : <span style={{ fontSize: 10, color: C.muted, textAlign: "center", userSelect: "none", lineHeight: 1 }}>{n}</span>}
               <input className="tdinp" value={w.en} placeholder="anglicky…" onChange={e => onUpdate(w.id, "en", e.target.value)} />
               <input className="tdinp" value={w.cs} placeholder="česky…" onChange={e => onUpdate(w.id, "cs", e.target.value)} />
               <input className="tdinp col-ex" value={w.example || ""} placeholder="příkladová věta…" onChange={e => onUpdate(w.id, "example", e.target.value)} />

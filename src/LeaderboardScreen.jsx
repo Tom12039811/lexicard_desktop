@@ -3,7 +3,7 @@
 ══════════════════════════════════════════════════════════════ */
 
 import { useState, useEffect } from "react";
-import { C, STYLE } from "./constants.js";
+import { C } from "./constants.js";
 import { getLevel } from "./utils.js";
 import { supabase } from "./supabase.js";
 
@@ -78,7 +78,6 @@ export default function LeaderboardScreen({ onBack, currentUserId, lightMode }) 
 
   return (
     <div className={lightMode ? "lc-light" : ""} style={{ minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", padding: "1.5rem 1rem 3rem" }}>
-      <style>{STYLE}</style>
 
       {/* header */}
       <div style={{ width: "100%", maxWidth: 600, display: "flex", alignItems: "center", gap: 12, marginBottom: "1.5rem" }}>

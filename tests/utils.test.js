@@ -43,3 +43,43 @@ t("checkStreak: lokální datum, včera +1, jinak 1, dnes beze změny", () => {
 t("localDateStr: 23:30 CET = stejný den (ne UTC)", () => {
   assert.equal(U.localDateStr(new Date(2026,9,23,0,30)),"2026-10-23");
 });
+
+// ── F6: hodnocení překlepů (bod 53) a problémová slova (bod 50) ──
+t("gradeAnswer: přesně / tolerovaný překlep = ok", () => {
+  assert.equal(U.gradeAnswer("house", "house").result, "ok");
+  assert.equal(U.gradeAnswer("hous", "house").result, "ok");
+});
+t("gradeAnswer: o překlep víc než tolerance = typo, s nalezenou variantou", () => {
+  const g = U.gradeAnswer("hosue", "dům / house");   // 2 záměny písmen u 5znakového slova
+  assert.equal(g.result, "typo"); assert.equal(g.match, "house");
+  assert.equal(U.gradeAnswer("nefunkčný", "nefunkční / mimo provoz").result, "ok");
+  assert.equal(U.gradeAnswer("nefunkcy", "nefunkční / mimo provoz").result, "typo");
+});
+t("gradeAnswer: krátká slova nikdy typo, úplně jiné slovo = wrong", () => {
+  assert.equal(U.gradeAnswer("car", "cat").result, "wrong");
+  assert.equal(U.gradeAnswer("dog", "house").result, "wrong");
+  assert.equal(U.gradeAnswer("xyzw", "house").result, "wrong");
+});
+t("gradeAnswer: dlouhá věta – 3 překlepy = typo, 2 = ok", () => {
+  const e = "Will you pass me the sugar";
+  assert.equal(U.gradeAnswer("Will you pas me the sugr", e).result, "ok");
+  assert.equal(U.gradeAnswer("Wil you pas me the sugr", e).result, "typo");
+});
+t("diffChars: označí chybějící, navíc a zaměněná písmena", () => {
+  const d = U.diffChars("hous", "house");
+  assert.deepEqual(d.expected.map(p => p.bad), [false, false, false, false, true]);
+  assert.ok(d.given.some(p => p.gap));
+  const s = U.diffChars("hosue", "house");
+  assert.equal(s.expected.filter(p => p.bad).length, 2);
+});
+t("isProblem: 2× špatně a krabička 1–2", () => {
+  assert.ok(U.isProblem({ wStats: { wrong: 2 }, vmBox: 1 }));
+  assert.ok(U.isProblem({ wStats: { wrong: 5 }, vmBox: 2 }));
+  assert.ok(!U.isProblem({ wStats: { wrong: 5 }, vmBox: 3 }));
+  assert.ok(!U.isProblem({ wStats: { wrong: 1 }, vmBox: 1 }));
+  assert.ok(!U.isProblem({}));
+});
+t("sortWords 'problem': problémová nahoře podle počtu chyb", () => {
+  const w = [{ id: "a", addedAt: 1 }, { id: "b", addedAt: 2, wStats: { wrong: 2 }, vmBox: 1 }, { id: "c", addedAt: 3, wStats: { wrong: 4 }, vmBox: 2 }];
+  assert.deepEqual(U.sortWords(w, "problem").map(x => x.id), ["c", "b", "a"]);
+});

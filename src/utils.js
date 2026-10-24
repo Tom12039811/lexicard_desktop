@@ -248,26 +248,64 @@ function tolerance(len) {
   return 2;
 }
 
-/* ── Lokální porovnání odpovědi ────────────────────────────── */
-// expected: hlavní pole (varianty oddělené "/" nebo ";", čárka NE — věty obsahují čárky)
-// extra:    synonyma (oddělovač "/", ";" nebo ",")
-export function localMatch(given, expected, extra = "") {
-  if (!given || !expected) return false;
+/* ── Vyhodnocení odpovědi: "ok" | "typo" (téměř – překlep) | "wrong" ──
+   expected: hlavní pole (varianty oddělené "/" nebo ";", čárka NE — věty obsahují čárky)
+   extra:    synonyma (oddělovač "/", ";" nebo ",")
+   "typo" = o jeden překlep víc, než je tolerance; jen u slov od 4 znaků (car ≠ cat). */
+export function gradeAnswer(given, expected, extra = "") {
+  if (!given || !expected) return { result: "wrong" };
   const g = norm(given);
-  if (!g) return false;
+  if (!g) return { result: "wrong" };
   const variants = [
     expected,                                   // celý text jako celek (věta s čárkou)
     ...expected.split(/[/;]/),
     ...(extra ? extra.split(/[/;,]/) : []),
-  ].map(v => norm(v)).filter(Boolean);
+  ].map(v => v.trim()).filter(Boolean);
   const gs = new Set([g, stripLead(g)]);
-  return variants.some(v => {
-    const vs = new Set([v, stripLead(v)]);
-    for (const a of gs) for (const b of vs) {
-      if (lev(a, b) <= tolerance(b.length)) return true;
+  let typo = null;
+  for (const v of variants) {
+    const nv = norm(v);
+    if (!nv) continue;
+    for (const a of gs) for (const b of new Set([nv, stripLead(nv)])) {
+      const d = lev(a, b), tol = tolerance(b.length);
+      if (d <= tol) return { result: "ok", match: v, distance: d };
+      if (!typo && b.length >= 4 && d === tol + 1) typo = { result: "typo", match: v, distance: d };
     }
-    return false;
-  });
+  }
+  return typo ?? { result: "wrong" };
+}
+
+/* ── Lokální porovnání odpovědi (true = správně) ───────────── */
+export function localMatch(given, expected, extra = "") {
+  return gradeAnswer(given, expected, extra).result === "ok";
+}
+
+/* ── Rozdíl po písmenech pro zobrazení překlepu ─────────────────
+   Vrací { given: [{ch, bad}], expected: [{ch, bad}] }; chybějící písmeno
+   v odpovědi je označené jako { ch: "·", bad: true, gap: true }. */
+export function diffChars(given, expected) {
+  const a = [...(given ?? "")], b = [...(expected ?? "")];
+  const A = a.map(c => c.toLowerCase()), B = b.map(c => c.toLowerCase());
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, (_, i) => { const r = new Array(n + 1).fill(0); r[0] = i; return r; });
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = A[i - 1] === B[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+  const G = [], E = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && A[i - 1] === B[j - 1] && dp[i][j] === dp[i - 1][j - 1]) {
+      G.push({ ch: a[i - 1], bad: false }); E.push({ ch: b[j - 1], bad: false }); i--; j--;
+    } else if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] + 1) {
+      G.push({ ch: a[i - 1], bad: true }); E.push({ ch: b[j - 1], bad: true }); i--; j--;
+    } else if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) {
+      G.push({ ch: a[i - 1], bad: true }); i--;                 // písmeno navíc
+    } else {
+      G.push({ ch: "·", bad: true, gap: true }); E.push({ ch: b[j - 1], bad: true }); j--; // chybí písmeno
+    }
+  }
+  return { given: G.reverse(), expected: E.reverse() };
 }
 
 /* ── Normalizace pro vyhledávání (bez diakritiky a interpunkce) ── */
@@ -361,6 +399,10 @@ export function getLevel(xp = 0) {
   return { level, next, progress, pct: progress, name: LVL_NAMES[level - 1] ?? "" };
 }
 
+/* ── Problémové slovo = aspoň 2× špatně a zároveň v krabičce 1–2 ──
+   Jakmile se slovo naučíš (krabička 3+), z problémových samo zmizí. */
+export const isProblem = w => (w?.wStats?.wrong ?? 0) >= 2 && (w?.vmBox ?? 1) <= 2;
+
 /* ── Zvládnuté slovo = krabička ≥ 4 (interval 14 dní a víc) ── */
 export const MASTERED_BOX = 4;
 export const isMastered = w => (w?.vmBox ?? 1) >= MASTERED_BOX;
@@ -417,6 +459,8 @@ export function sortWords(words, key) {
     case "score-desc": return arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     case "wrong":
     case "wrong-desc": return arr.sort((a, b) => (b.wStats?.wrong ?? 0) - (a.wStats?.wrong ?? 0));
+    // problémová nahoře (nejvíc chyb první), ostatní v původním pořadí
+    case "problem":  return arr.sort((a, b) => (isProblem(b) - isProblem(a)) || (isProblem(a) ? (b.wStats?.wrong ?? 0) - (a.wStats?.wrong ?? 0) : (a.addedAt ?? 0) - (b.addedAt ?? 0)));
     default:         return arr;
   }
 }

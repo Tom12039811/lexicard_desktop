@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
-import { C, STYLE, MODES } from "./constants.js";
-import { parseSyn, comboInfo, isIOS } from "./utils.js";
+import { C, MODES } from "./constants.js";
+import { parseSyn, comboInfo, isIOS, diffChars } from "./utils.js";
 import { usePersistentState } from "./hooks.js";
 import { SettingsDropdown, EditWordModal } from "./modals.jsx";
 
@@ -162,14 +162,36 @@ export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, all
 }
 
 /* ══════════════════════════════════════════════════════════════
+   TYPO DIFF — zvýraznění rozdílných písmen u „téměř správně“
+══════════════════════════════════════════════════════════════ */
+function TypoDiff({ given, expected }) {
+  const d = diffChars(given, expected);
+  const row = (label, parts, color) => (
+    <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", marginTop: 4 }}>
+      <span style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1, minWidth: 64 }}>{label}</span>
+      <span style={{ fontSize: 16, letterSpacing: .5, fontFamily: "system-ui, sans-serif" }}>
+        {parts.map((p, i) => (
+          <span key={i} style={p.bad ? { color, background: `${color}22`, borderBottom: `2px solid ${color}`, borderRadius: 2, padding: "0 1px" } : { color: C.text }}>{p.ch === " " ? "\u00a0" : p.ch}</span>
+        ))}
+      </span>
+    </div>
+  );
+  return (
+    <div style={{ marginTop: 6 }}>
+      {row("Tvoje", d.given, "#e08060")}
+      {row("Správně", d.expected, "#5cb88a")}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
    ROUND END
 ══════════════════════════════════════════════════════════════ */
-export function RoundEnd({ stats, total, deckName, xpEarned, newLevel, streak, onNext, onBack }) {
+export function RoundEnd({ stats, total, deckName, xpEarned, newLevel, streak, onNext, onBack, nextLabel = "Další kolo →", note = null }) {
   const pct = total ? Math.round(stats.ok / total * 100) : 0;
   const em = pct >= 90 ? "🏆" : pct >= 70 ? "👏" : pct >= 50 ? "💪" : "📚";
   return (
-    <div style={{ minHeight: "100dvh", background: C.bg, fontFamily: "'Lora',Georgia,serif", color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", overscrollBehavior: "none" }}>
-      <style>{STYLE}</style>
+    <div className="lc-screen" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem"  }}>
       <div className="card-in" style={{ width: "100%", maxWidth: 400, textAlign: "center" }}>
         <div style={{ fontSize: 52, marginBottom: 10 }}>{em}</div>
         <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 700, color: C.gold, marginBottom: 4 }}>Kolo dokončeno!</div>
@@ -188,8 +210,9 @@ export function RoundEnd({ stats, total, deckName, xpEarned, newLevel, streak, o
           ))}
         </div>
         {xpEarned > 0 && <div style={{ background: "var(--lc-streakBg)", border: "1px solid #3a3010", borderRadius: 10, padding: "8px", marginBottom: 14, fontSize: 14, color: C.gold }}>+{xpEarned} XP získáno{streak >= 3 ? ` · 🔥 ${streak} dní v řadě` : ""}</div>}
+        {note && <div style={{ fontSize: 13, color: C.textDim, marginBottom: 12 }}>{note}</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-          <button className="btn" onClick={onNext} style={{ background: C.gold, border: "none", color: C.bg, borderRadius: 11, padding: "13px", fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: "'Playfair Display',serif" }}>Další kolo →</button>
+          <button className="btn" onClick={onNext} style={{ background: C.gold, border: "none", color: C.bg, borderRadius: 11, padding: "13px", fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: "'Playfair Display',serif" }}>{nextLabel}</button>
           <button className="btn" onClick={onBack} style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.muted, borderRadius: 11, padding: "11px", fontSize: 14, cursor: "pointer" }}>Zpět na slovíčka</button>
         </div>
       </div>
@@ -213,8 +236,8 @@ export function DailyDoneScreen({ stats, deckName, onEnd, onContinue }) {
   })));
 
   return (
-    <div style={{ minHeight: "100dvh", background: C.bg, fontFamily: "'Lora',Georgia,serif", color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", overscrollBehavior: "none", position: "relative", overflow: "hidden" }}>
-      <style>{STYLE}{`
+    <div className="lc-screen" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", position: "relative", overflow: "hidden"  }}>
+      <style>{`
         @keyframes confettiFall {
           0%   { transform: translateY(-20px) translateX(0) rotate(0deg); opacity: 1; }
           100% { transform: translateY(110vh) translateX(var(--drift)) rotate(720deg); opacity: 0; }
@@ -286,7 +309,7 @@ export default function StudyScreen({
   tx, micSt, micErr, iMode, typed, autoPlay, playSounds,
   pronAtt, evalLoading, wrongCountdown, dictEntry,
   mode, translDir, flipDir,
-  folderName,
+  folderName, isProblemMode = false,
   onSetMode, onSetTranslDir, onSetFlipDir,
   onSetIMode, onSetTyped, onSetAutoPlay, onSetPlaySounds,
   onFlip, onFlipAnswer, onStartListen, onStopListen,
@@ -317,12 +340,11 @@ export default function StudyScreen({
   const studyFlag = lc?.flag || "🇬🇧";
 
   return (
-    <div style={{ minHeight: "100dvh", background: C.bg, fontFamily: "'Lora',Georgia,serif", color: C.text, display: "flex", flexDirection: "column", overscrollBehavior: "none", alignItems: "center", overflow: "hidden" }}>
-      <style>{STYLE}</style>
+    <div className="lc-screen" style={{ display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden"  }}>
 
       {/* top bar */}
       <div style={{ width: "100%", maxWidth: 680, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.75rem 1rem", borderBottom: `1px solid #1a1f2e`, gap: 8 }}>
-        <button className="btn" onClick={onBack} style={{ color: C.muted, fontSize: 12, flexShrink: 0 }}>← {folderName ? `📁 ${folderName}` : deck?.name}</button>
+        <button className="btn" onClick={onBack} style={{ color: C.muted, fontSize: 12, flexShrink: 0 }}>← {isProblemMode ? "⚠️ " : ""}{folderName ? `📁 ${folderName}` : deck?.name}</button>
         <div style={{ flex: 1, maxWidth: 130 }}>
           <div style={{ fontSize: 10, color: C.muted, textAlign: "center", marginBottom: 3 }}>Kolo {rIdx + 1}/{rWords.length}</div>
           <div style={{ background: "var(--lc-xpTrack)", borderRadius: 3, height: 3 }}>
@@ -506,23 +528,24 @@ export default function StudyScreen({
           {/* feedback */}
           {!evalLoading && feedback && (
             <div className="fade-up" style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-              <div style={{ width: "100%", background: feedback.ok ? C.okBg : C.errBg, border: `1px solid ${feedback.ok ? C.okBorder : C.errBorder}`, borderRadius: 14, padding: "1rem 1.2rem", display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 28, flexShrink: 0 }}>{feedback.ok ? "✓" : "✗"}</span>
+              <div style={{ width: "100%", background: feedback.typo ? "var(--lc-streakBg)" : feedback.ok ? C.okBg : C.errBg, border: `1px solid ${feedback.typo ? "var(--lc-goldDim)" : feedback.ok ? C.okBorder : C.errBorder}`, borderRadius: 14, padding: "1rem 1.2rem", display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 28, flexShrink: 0 }}>{feedback.typo ? "≈" : feedback.ok ? "✓" : "✗"}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 13, fontWeight: 700, color: feedback.ok ? C.ok : C.err, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
-                    {feedback.ok ? (isPron ? "Výborná výslovnost!" : "Správně!") : (feedback.forced ? "3× špatně" : (isPron ? "Zkus příště" : "Špatně"))}
-                    {feedback.ok && <span style={{ fontSize: 10, color: "var(--lc-muted)", marginLeft: "auto" }}>→ za chvíli…</span>}
+                  <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 13, fontWeight: 700, color: feedback.typo ? C.gold : feedback.ok ? C.ok : C.err, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                    {feedback.typo ? "Téměř – překlep" : feedback.ok ? (isPron ? "Výborná výslovnost!" : "Správně!") : (feedback.forced ? "3× špatně" : (isPron ? "Zkus příště" : "Špatně"))}
+                    {feedback.ok && !feedback.typo && <span style={{ fontSize: 10, color: "var(--lc-muted)", marginLeft: "auto" }}>→ za chvíli…</span>}
                   </div>
                   <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 19, fontWeight: 700, color: C.text }}>{parseSyn(feedback.answer)[0] || feedback.answer}</div>
                   {allSyn && <div style={{ fontSize: 11, color: "var(--lc-muted)", marginTop: 2 }}>✓ také: {allSyn}</div>}
                   {ipa && <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", marginTop: 2 }}>{ipa}</div>}
                   {effDir === "en-cs" && w.example && <div style={{ fontSize: 14, color: "var(--lc-textDim)", fontStyle: "italic", marginTop: 6, lineHeight: 1.5 }}>💡 „{w.example}"</div>}
+                  {feedback.typo && <TypoDiff given={feedback.typo.given} expected={feedback.typo.match} />}
                   {!feedback.ok && feedback.given && <div style={{ fontSize: 11, color: "var(--lc-mutedDark)", marginTop: 4, fontStyle: "italic" }}>Vaše odpověď: „{feedback.given}"</div>}
                 </div>
                 <button className="btn" onClick={() => onSpeak(parseSyn(feedback.answer)[0] || feedback.answer, aLang)}
                   style={{ border: `1px solid var(--lc-inputBorder)`, color: "var(--lc-muted)", borderRadius: "50%", width: 32, height: 32, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🔊</button>
               </div>
-              {!feedback.ok && (
+              {(!feedback.ok || feedback.typo) && (
                 <button className="btn" onClick={onNextCard}
                   style={{ background: C.card, border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 11, padding: "10px 32px", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}

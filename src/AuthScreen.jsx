@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase } from "./supabase.js";
-import { C, STYLE } from "./constants.js";
+import { C } from "./constants.js";
 
 export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
   const [mode, setMode] = useState(recoveryMode ? "newPassword" : "login"); // "login" | "register" | "forgot" | "newPassword"
@@ -119,7 +119,6 @@ export default function AuthScreen({ recoveryMode = false, onRecoveryDone }) {
       justifyContent: "center",
       padding: "1.5rem",
     }}>
-      <style>{STYLE}</style>
       {/* Logo */}
       <div style={{ textAlign: "center", marginBottom: "2rem" }}>
         <div style={{ fontSize: 48, marginBottom: "0.5rem" }}>🃏</div>

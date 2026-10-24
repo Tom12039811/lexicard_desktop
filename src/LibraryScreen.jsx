@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { C, STYLE } from "./constants.js";
+import { C } from "./constants.js";
 import { uid, now } from "./utils.js";
 import { supabase } from "./supabase.js";
 
@@ -248,7 +248,6 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, localDec
   /* ── Render ── */
   return (
     <div style={{ minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", padding: "1.5rem 1rem 3rem", fontFamily: "'Lora',Georgia,serif", color: C.text }}>
-      <style>{STYLE}</style>
 
       {/* Header */}
       <div style={{ width: "100%", maxWidth: 860, display: "flex", alignItems: "center", gap: 12, marginBottom: "1.5rem" }}>

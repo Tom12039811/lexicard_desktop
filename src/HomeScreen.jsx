@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { C, DECK_SORTS, STYLE } from "./constants.js";
-import { sortDecks, dueCount, getLevel, isMastered } from "./utils.js";
+import { C, DECK_SORTS } from "./constants.js";
+import { sortDecks, dueCount, getLevel, isMastered, isProblem } from "./utils.js";
 import { LangDropdown, UploadModal, FolderModal, ConfirmModal, MoveFolderModal, FolderStatsModal } from "./modals.jsx";
 import { supabase } from "./supabase.js";
 import { usePersistentState } from "./hooks.js";
@@ -91,9 +91,7 @@ function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLig
             <button
               className="btn"
               onClick={() => { setShowProfile(true); setOpen(false); }}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.textDim, fontSize: 13, textAlign: "left" }}
-              onMouseEnter={e => e.currentTarget.style.background = "var(--lc-dropHover)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.textDim, fontSize: 13, textAlign: "left" }} data-hover="menu"
             >
               <span style={{ fontSize: 15 }}>✏️</span> Upravit profil
             </button>
@@ -128,9 +126,7 @@ function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLig
             <button
               className="btn"
               onClick={() => { onLogout(); setOpen(false); }}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.err, fontSize: 13, textAlign: "left" }}
-              onMouseEnter={e => e.currentTarget.style.background = "var(--lc-errBg)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.err, fontSize: 13, textAlign: "left" }} data-hover="danger"
             >
               <span style={{ fontSize: 15 }}>🚪</span> Odhlásit se
             </button>
@@ -301,7 +297,7 @@ export default function HomeScreen({
   onLangSwitch, onAddLang, onEditLang, onDeleteLang,
   onSelect, onFileUpload, onSampleDeck,
   onAddFolder, onRenameFolder, onDeleteFolder, onMoveDeck,
-  onFolderStudy, onLogout, userEmail, username,
+  onFolderStudy, onFolderProblems, onLogout, userEmail, username,
   onLibrary, onLeaderboard,
   lightMode, onToggleLight,
   newlyDownloaded = new Set(),
@@ -330,8 +326,7 @@ export default function HomeScreen({
 
 
   return (
-    <div style={{ minHeight: "100dvh", background: C.bg, fontFamily: "'Lora',Georgia,serif", color: C.text, display: "flex", flexDirection: "column", alignItems: "center", padding: "1.5rem 1rem", overscrollBehavior: "none" }}>
-      <style>{STYLE}</style>
+    <div className="lc-screen" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "1.5rem 1rem"  }}>
 
       {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUpload={onFileUpload} />}
       {showAddFolder && <FolderModal title="Nová složka" onClose={() => setShowAddFolder(false)} onSave={name => { onAddFolder(name); setShowAddFolder(false); }} />}
@@ -452,7 +447,7 @@ export default function HomeScreen({
 
       {/* ── Sort ── */}
       <div style={{ width: "100%", maxWidth: 780, display: "flex", alignItems: "center", gap: 7, marginBottom: 12, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 2, flexShrink: 0 }}>Řadit:</span>
+        <span className="lc-label" style={{ flexShrink: 0 }}>Řadit:</span>
         {DECK_SORTS.map(s => (
           <button key={s.id} className="btn" onClick={() => setSort(s.id)}
             style={{ background: sort === s.id ? "var(--lc-selBg)" : "transparent", border: `1px solid ${sort === s.id ? "var(--lc-selBorder)" : C.border}`, color: sort === s.id ? C.gold : C.muted, borderRadius: 8, padding: "4px 11px", fontSize: 11, cursor: "pointer" }}>
@@ -474,6 +469,7 @@ export default function HomeScreen({
           <>
             {langFolders.map(f => {
               const fDecks = decksInFolder(f.id);
+              const fProblems = fDecks.reduce((n, d) => n + d.words.filter(isProblem).length, 0);
               const isOpen = openFolders[f.id] !== false;
               return (
                 <div key={f.id} style={{ background: "var(--lc-folderBg)", border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
@@ -482,6 +478,12 @@ export default function HomeScreen({
                     <span style={{ fontSize: 16 }}>{isOpen ? "📂" : "📁"}</span>
                     <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 15, fontWeight: 600, color: C.text, flex: 1 }}>{f.name}</span>
                     <span style={{ fontSize: 11, color: C.muted }}>{fDecks.length} bal.</span>
+                    {fProblems > 0 && onFolderProblems && (
+                      <button className="btn" onClick={e => { e.stopPropagation(); onFolderProblems(f.id); }} title="Trénuj problémová slova ze složky"
+                        style={{ background: "var(--lc-errBg)", border: "1px solid var(--lc-errBorder)", color: "var(--lc-err)", borderRadius: 7, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                        ⚠️ {fProblems}
+                      </button>
+                    )}
                     {fDecks.length > 0 && (
                       <button className="btn" onClick={e => { e.stopPropagation(); onFolderStudy(f.id); }} title="Učení ze složky"
                         style={{ background: "var(--lc-selBg)", border: `1px solid var(--lc-selBorder)`, color: C.gold, borderRadius: 7, padding: "3px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
@@ -512,7 +514,7 @@ export default function HomeScreen({
             })}
             {looseDecks.length > 0 && (
               <div>
-                {langFolders.length > 0 && <div style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Bez složky</div>}
+                {langFolders.length > 0 && <div className="lc-label" style={{ marginBottom: 8 }}>Bez složky</div>}
                 <div className="deck-grid">
                   {looseDecks.map(d => <DeckCard key={d.id} d={d} isNew={newlyDownloaded.has(d.id)} onSelect={onSelect} onMove={deck => setMoveInfo({ deck })} />)}
                 </div>

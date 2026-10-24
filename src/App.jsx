@@ -1,52 +1,41 @@
-import { useState, useEffect, useRef } from "react";
-import * as XLSX from "xlsx";
+/* ══════════════════════════════════════════════════════════════
+   App.jsx — LexiCard: přihlášení, motiv, navigace mezi obrazovkami
+   Data:            useAppData.js
+   Synchronizace:   useSync.js
+   Učení:           useStudySession.js
+══════════════════════════════════════════════════════════════ */
 
-import { DEFAULT_LANGS, SAMPLE_WORDS, STYLE } from "./constants.js";
-import {
-  uid, now, pickRound, vmUpdate, getLevel, calcXP,
-  checkStreak, fetchDict, doSpeak, playSound,
-  localMatch, parseSyn,
-} from "./utils.js";
+import { useState, useEffect } from "react";
 import HomeScreen from "./HomeScreen.jsx";
 import DeckScreen from "./DeckScreen.jsx";
 import StudyScreen, { RoundEnd, DailyDoneScreen } from "./StudyScreen.jsx";
 import { OnboardingModal, EnVoiceWarningModal } from "./modals.jsx";
 import AuthScreen from "./AuthScreen.jsx";
-import { supabase } from "./supabase.js";
-import { runSync, getSyncMeta, addTombstones, tombstoneCount } from "./sync.js";
-import { reconcileDecks, reconcileList, countDirty } from "./syncMerge.js";
 import LibraryScreen from "./LibraryScreen.jsx";
 import LeaderboardScreen from "./LeaderboardScreen.jsx";
-import { usePersistentState } from "./hooks.js";
-
-/* ── helpers ── */
-function buildDailyPool(words) {
-  // Slova splatná dnes nebo overdue
-  const t = Date.now();
-  return words.filter(w => !w.vmNextReview || w.vmNextReview <= t);
-}
+import { supabase } from "./supabase.js";
+import { useAppData } from "./useAppData.js";
+import { useSync } from "./useSync.js";
+import { useStudySession } from "./useStudySession.js";
 
 export default function LexiCard() {
-  /* ── auth session ── */
-  const [session, setSession] = useState(undefined); // undefined = loading, null = not logged in
-  const [recoveryMode, setRecoveryMode] = useState(false); // true = uzivatel prisel z odkazu pro obnovu hesla
+  /* ── přihlášení ── */
+  const [session, setSession] = useState(undefined); // undefined = načítá se, null = nepřihlášen
+  const [recoveryMode, setRecoveryMode] = useState(false); // příchod z odkazu pro obnovu hesla
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session ?? null);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (_event === "PASSWORD_RECOVERY") {
-        setRecoveryMode(true);
-      }
+      if (_event === "PASSWORD_RECOVERY") setRecoveryMode(true);
       setSession(session ?? null);
     });
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  /* ── light mode ── */
+  /* ── světlý / tmavý motiv ── */
   const [lightMode, setLightMode] = useState(() => localStorage.getItem("lc_lightMode") === "1");
-
   function toggleLight() {
     setLightMode(v => {
       const next = !v;
@@ -55,764 +44,35 @@ export default function LexiCard() {
       return next;
     });
   }
-
-  /* apply theme on mount */
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", lightMode ? "light" : "dark");
   }, []); // eslint-disable-line
 
-  /* ── core state ── */
-  const [decks, setDecks]             = useState([]);
-  const [langs, setLangs]             = useState(DEFAULT_LANGS);
-  const [folders, setFolders]         = useState([]);
-  const [screen, setScreen]           = useState("home");
+  /* ── navigace ── */
+  const [screen, setScreen] = useState("home");
+  const [deckId, setDeckId] = useState(null);
   const [newlyDownloaded, setNewlyDownloaded] = useState(new Set());
-  const [deckId, setDeckId]           = useState(null);
-  const [activeLang, setLang]         = useState("en");
-  const [loaded, setLoaded]           = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showEnVoiceWarning, setShowEnVoiceWarning] = useState(false);
-  const [gameStats, setGameStats]     = useState({ xp: 0, dailyStreak: 0, lastStudyDate: null });
 
-  /* ── folder study ── */
-  const [studyFolderId, setStudyFolderId] = useState(null); // null = single deck, string = folder id
-
-  /* ── study state ── */
-  // Nastavení učení si pamatujeme mezi sezeními (per zařízení)
-  const isDir = v => v === "en-cs" || v === "cs-en";
-  const [mode, setMode]               = usePersistentState("lc6_mode", "transl", v => ["transl", "pron", "flip"].includes(v));
-  const [translDir, setTranslDir]     = usePersistentState("lc6_translDir", "en-cs", isDir);
-  const [flipDir, setFlipDir]         = usePersistentState("lc6_flipDir", "en-cs", isDir);
-  const [rWords, setRWords]           = useState([]);
-  const [rIdx, setRIdx]               = useState(0);
-  const [rStats, setRStats]           = useState({ ok: 0, bad: 0, xp: 0 });
-  const [combo, setCombo]             = useState(0);
-  const [feedback, setFB]             = useState(null);
-  const [flipFlash, setFlipFlash]     = useState(null);
-  const [flipped, setFlipped]         = useState(false);
-  const [listenOn, setListen]         = useState(false);
-  const [tx, setTx]                   = useState("");
-  const [micSt, setMicSt]             = useState("idle");
-  const [micErr, setMicErr]           = useState("");
-  const [iMode, setIMode]             = usePersistentState("lc6_inputMode", "mic", v => v === "mic" || v === "text");
-  const [typed, setTyped]             = useState("");
-  const [autoPlay, setAutoPlay]       = usePersistentState("lc6_autoPlay", true, v => typeof v === "boolean");
-  const [playSounds, setPlaySounds]   = useState(() => { try { const v = localStorage.getItem("lc6_playSounds"); return v === null ? true : v === "true"; } catch { return true; } });
-  const [pronAtt, setPronAtt]         = useState(0);
-  const [evalLoading, setEvalLoading] = useState(false);
-  const [wrongCountdown, setWrongCountdown] = useState(0);
-  const [dictEntry, setDictEntry]     = useState(null);
-  const [roundEndData, setRoundEndData] = useState(null);
-
-  /* ── daily pool state ── */
-  // poolUnseen:   IDs slov která ještě nebyla v žádném kole tohoto sezení
-  // poolReturned: IDs slov která se vrátila (špatně/tuším) — do dalšího kola
-  // dailyPoolDone: true = všechna dnešní slova naučena → daily done screen
-  const [poolUnseen, setPoolUnseen]     = useState(null); // null = bez pool trackingu
-  const [poolReturned, setPoolReturned] = useState(new Set());
-  const [, setDailyPoolDone] = useState(false);
-
-  const recRef      = useRef(null);
-  const streamRef   = useRef(null);
-  const synthRef    = useRef(window.speechSynthesis);
-  const timerRef    = useRef(null);
-  const intervalRef = useRef(null);
-  // Vždy aktuální verze nextCard pro časovače (setTimeout) — jinak by časovač
-  // zavolal verzi se starými rStats a poslední odpověď kola by se nezapočítala.
-  const nextCardRef = useRef(null);
-
-  /* ── synchronizace (F4) ── */
-  const [syncStatus, setSyncStatus] = useState(null);      // text lišty dole (jen úplná synchronizace)
-  const [syncInfo, setSyncInfo]     = useState({ state: "idle", lastSyncAt: null, error: null });
-  const stateRef   = useRef({ decks: [], folders: [], gameStats: {} });
-  const sessionRef = useRef(session);
-  const syncingRef = useRef(false);
-  const queuedRef  = useRef(null);        // "quick" | "full" – sync vyžádaný během běžícího syncu
-  useEffect(() => { stateRef.current = { decks, folders, gameStats }; sessionRef.current = session; });
-
-  async function triggerSync({ full = false } = {}) {
-    const s = sessionRef.current;
-    const userId = s?.user?.id;
-    if (!userId) return;
-    if (syncingRef.current) { queuedRef.current = (full || queuedRef.current === "full") ? "full" : "quick"; return; }
-    syncingRef.current = true;
-    setSyncInfo(i => ({ ...i, state: "syncing", lastSyncAt: i.lastSyncAt ?? getSyncMeta(userId).lastSyncAt }));
-
-    const snap = stateRef.current;   // snímek na začátku – výsledek se s ním porovná (reconcile)
-    const username = s.user.user_metadata?.username || s.user.email?.split("@")[0];
-    const res = await runSync(snap, { userId, username, full, onProgress: full ? setSyncStatus : undefined });
-
-    if (res.ok) {
-      // změny provedené během syncu zůstanou zachované (odešlou se příště)
-      setDecks(prev => reconcileDecks(prev, snap.decks, res.decks));
-      setFolders(prev => reconcileList(prev, snap.folders, res.folders));
-      setGameStats(prev => (prev === snap.gameStats ? res.gameStats : prev));
-      setSyncInfo({ state: "ok", lastSyncAt: res.syncedAt, error: null });
-    } else {
-      setSyncInfo(i => ({ ...i, state: res.error === "offline" ? "offline" : "error", error: res.error }));
-    }
-    syncingRef.current = false;
-    const q = queuedRef.current;
-    queuedRef.current = null;
-    if (q) triggerSync({ full: q === "full" });
-  }
-
-  /* Úplná synchronizace po přihlášení / startu aplikace */
-  const prevSessionRef = useRef(undefined);
-  useEffect(() => {
-    const wasNull = prevSessionRef.current === null || prevSessionRef.current === undefined;
-    const isLoggedIn = session != null;
-    prevSessionRef.current = session;
-    if (wasNull && isLoggedIn && loaded) {
-      triggerSync({ full: true });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, loaded]);
-
-  /* Rychlá synchronizace: po obnovení připojení, při návratu do aplikace a při jejím opuštění */
-  useEffect(() => {
-    const onOnline = () => triggerSync();
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        const last = getSyncMeta(sessionRef.current?.user?.id).lastSyncAt;
-        if (!last || Date.now() - new Date(last).getTime() > 60000) triggerSync();
-      } else if (countDirty(stateRef.current, tombstoneCount()) > 0) {
-        triggerSync();   // best-effort – iOS může síť při uspání aplikace přerušit
-      }
-    };
-    window.addEventListener("online", onOnline);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /* Rychlá synchronizace 20 s po poslední změně (nejpozději 2 min od první neodeslané změny) */
-  const firstDirtyRef = useRef(null);
-  useEffect(() => {
-    if (!loaded || !session?.user?.id) return;
-    if (countDirty({ decks, folders, gameStats }, tombstoneCount()) === 0) { firstDirtyRef.current = null; return; }
-    const now = Date.now();
-    if (!firstDirtyRef.current) firstDirtyRef.current = now;
-    const delay = Math.max(0, Math.min(20000, firstDirtyRef.current + 120000 - now));
-    const t = setTimeout(() => { firstDirtyRef.current = null; triggerSync(); }, delay);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [decks, folders, gameStats, loaded, session]);
-
-  /* ── localStorage load ── */
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("lc6_data");
-      if (raw) {
-        const d = JSON.parse(raw);
-        if (d.decks) {
-          // Migrace: synonyms mohly být uloženy jako pole (z Supabase JSONB) — normalizuj na string
-          // + F4: každá položka musí mít updatedAt (jinak by se pořád jevila jako neodeslaná)
-          const fallbackTs = new Date().toISOString();
-          const migratedDecks = d.decks.map(deck => ({
-            ...deck,
-            updatedAt: deck.updatedAt ?? fallbackTs,
-            words: (deck.words || []).map(w => ({
-              ...w,
-              updatedAt: w.updatedAt ?? deck.updatedAt ?? fallbackTs,
-              synonyms: Array.isArray(w.synonyms) ? w.synonyms.join(", ") : (w.synonyms ?? ""),
-            })),
-          }));
-          // eslint-disable-next-line react-hooks/set-state-in-effect -- jednorázové načtení z localStorage
-          setDecks(migratedDecks);
-        }
-        if (d.lang)      setLang(d.lang);
-        if (d.langs)     setLangs(p => { const ids = new Set(p.map(l => l.id)); return [...p, ...d.langs.filter(l => !ids.has(l.id))]; });
-        if (d.gameStats) setGameStats(d.gameStats);
-        if (d.folders)   setFolders(d.folders.map(f => (f.updatedAt ? f : { ...f, updatedAt: new Date(f.createdAt || Date.now()).toISOString() })));
-      } else {
-        setShowOnboarding(true);
-      }
-    } catch { /* úložiště nedostupné */ }
-    setLoaded(true);
-
-    // Zkontroluj dostupnost anglického hlasu — jednorázově
-    const alreadyWarned = localStorage.getItem("lc6_enVoiceWarned") === "1";
-    if (!alreadyWarned && window.speechSynthesis) {
-      const check = () => {
-        const voices = window.speechSynthesis.getVoices();
-        if (!voices.length) return; // ještě nenačteno
-        const hasEn = voices.some(v => v.lang.toLowerCase().startsWith("en"));
-        if (!hasEn) setShowEnVoiceWarning(true);
-      };
-      // Hlasy mohou být dostupné až asynchronně
-      if (window.speechSynthesis.getVoices().length > 0) {
-        check();
-      } else {
-        window.speechSynthesis.onvoiceschanged = () => {
-          window.speechSynthesis.onvoiceschanged = null;
-          check();
-        };
-        // Fallback pokud onvoiceschanged nikdy nepřijde
-        setTimeout(check, 1000);
-      }
-    }
-  }, []);
-
-  // Ukládání do localStorage se zpožděním 400 ms — při psaní v řádku se nezapisuje
-  // celý dataset po každém písmenu. Při skrytí/zavření stránky se uloží okamžitě.
-  const saveTimerRef   = useRef(null);
-  const pendingSaveRef = useRef(null);
-  useEffect(() => {
-    if (!loaded) return;
-    pendingSaveRef.current = () => {
-      try { localStorage.setItem("lc6_data", JSON.stringify({ decks, lang: activeLang, langs: langs.filter(l => l.custom), gameStats, folders })); } catch { /* úložiště plné/nedostupné */ }
-      try { localStorage.setItem("lc6_playSounds", String(playSounds)); } catch { /* ignore */ }
-    };
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => { pendingSaveRef.current?.(); pendingSaveRef.current = null; }, 400);
-  }, [decks, activeLang, langs, loaded, gameStats, folders]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const flush = () => {
-      if (!pendingSaveRef.current) return;
-      clearTimeout(saveTimerRef.current);
-      pendingSaveRef.current();
-      pendingSaveRef.current = null;
-    };
-    const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
-    window.addEventListener("pagehide", flush);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      flush();
-      window.removeEventListener("pagehide", flush);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, []);
-
-  /* ── dict fetch ── */
-  useEffect(() => {
-    if (screen !== "study" || !rWords[rIdx]) return;
-    const w = rWords[rIdx];
-    const needEn = mode !== "cs-en";
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset slovníkového záznamu
-    if (!needEn) { setDictEntry(null); return; }
-    setDictEntry(null);
-    fetchDict(w.en).then(e => { if (rWords[rIdx]?.id === w.id) setDictEntry(e); });
-  }, [rIdx, mode, screen]); // eslint-disable-line react-hooks/exhaustive-deps -- záměrně jen při změně karty/režimu
-
-  useEffect(() => { nextCardRef.current = nextCard; });
-
-  /* ── auto-advance on feedback ── */
-  useEffect(() => {
-    if (!feedback || screen !== "study" || mode === "flip") return;
-    if (playSounds) playSound(feedback.ok ? "ok" : "bad");
-    if (feedback.ok) {
-      timerRef.current = setTimeout(() => nextCardRef.current?.(), 900);
-    } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- odpočet po špatné odpovědi
-      setWrongCountdown(5); let c = 5;
-      intervalRef.current = setInterval(() => { c--; setWrongCountdown(c); if (c <= 0) clearInterval(intervalRef.current); }, 1000);
-      timerRef.current = setTimeout(() => nextCardRef.current?.(), 5200);
-    }
-    return () => { clearTimeout(timerRef.current); clearInterval(intervalRef.current); };
-  }, [feedback]); // eslint-disable-line react-hooks/exhaustive-deps -- záměrně jen při změně feedbacku
-
-
+  /* ── data, synchronizace, učení ── */
+  const data = useAppData();
+  const { decks, setDecks, folders, setFolders, langs, activeLang, loaded, gameStats, setGameStats } = data;
   const deck = decks.find(d => d.id === deckId) ?? null;
 
-  /* ── file load ── */
-  function loadFile(file) {
-    const name = file.name.replace(/\.[^.]+$/, "");
-    const rd = new FileReader();
-    rd.onload = e => {
-      try {
-        const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
-        const words = rows.filter(r => r[0] && r[1]).map(r => ({
-          id: uid(), en: String(r[0]).trim(), cs: String(r[1]).trim(),
-          example: r[2] ? String(r[2]).trim() : "",
-          synonyms: r[3] ? String(r[3]).trim() : "",
-          score: 0, addedAt: now(),
-          vmBox: 1, vmLastReview: null, vmNextReview: null,
-          wStats: { total: 0, correct: 0, wrong: 0 },
-        }));
-        if (!words.length) { alert("Žádná slovíčka nenalezena."); return; }
-        const d = { id: uid(), name, lang: activeLang, words: words.map(w => ({ ...w, updatedAt: new Date().toISOString() })), createdAt: now(), updatedAt: new Date().toISOString(), deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 } };
-        setDecks(ds => [...ds, d]); setDeckId(d.id); setScreen("deck");
-      } catch { alert("Nepodařilo se načíst soubor."); }
-    };
-    rd.readAsArrayBuffer(file);
-  }
+  const sync = useSync({ session, loaded, decks, folders, gameStats, setDecks, setFolders, setGameStats });
+  const st = useStudySession({ decks, setDecks, deck, deckId, setDeckId, screen, setScreen, gameStats, setGameStats });
 
-  function loadSampleDeck() {
-    const words = SAMPLE_WORDS.map(w => ({ id: uid(), ...w, synonyms: "", score: 0, addedAt: now(), vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 }, updatedAt: new Date().toISOString() }));
-    const d = { id: uid(), name: "Ukázkový balíček", lang: activeLang, words, createdAt: now(), updatedAt: new Date().toISOString(), deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 } };
-    setDecks(ds => [...ds, d]); setDeckId(d.id); setScreen("deck");
-  }
+  const openDeck = d => { setDeckId(d.id); setScreen("deck"); };
+  const studyName = st.studyFolderId ? (folders.find(f => f.id === st.studyFolderId)?.name ?? "Složka") : (deck?.name ?? "");
+  const backFromStudy = () => setScreen(st.studyFolderId ? "home" : "deck");
 
-  /* ── deck ops ── */
-  const updWord   = (wid, field, val) => setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), words: d.words.map(w => w.id !== wid ? w : { ...w, [field]: val, updatedAt: new Date().toISOString() }) }));
-  function addWord({ en, cs, example, synonyms }) {
-    setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), words: [...d.words, { id: uid(), en, cs, example, synonyms: synonyms || "", score: 0, addedAt: now(), vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 }, updatedAt: new Date().toISOString() }] }));
-  }
-  const delWord   = wid  => { addTombstones("cards", [wid]); delWordLocal(wid); };
-  const delWordLocal = wid => setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), words: d.words.filter(w => w.id !== wid) }));
-  function editWordInDecks(wid, data) {
-    // Funguje i pro folder study — prohledá všechny balíčky
-    setDecks(ds => ds.map(d => ({
-      ...d,
-      updatedAt: d.words.some(w => w.id === wid) ? new Date().toISOString() : d.updatedAt,
-      words: d.words.map(w => w.id !== wid ? w : { ...w, ...data, updatedAt: new Date().toISOString() }),
-    })));
-    // Okamžitá aktualizace karet v probíhajícím kole
-    setRWords(rw => rw.map(w => w.id !== wid ? w : { ...w, ...data, updatedAt: new Date().toISOString() }));
-  }
-  function delDeck() {
-    if (!deckId) return;
-    // Balíček se v Supabase označí jako smazaný (deleted_at) při příští synchronizaci
-    // → smaže se i na ostatních zařízeních a už se znovu nenahraje.
-    addTombstones("decks", [deckId]);
-    setDecks(ds => ds.filter(d => d.id !== deckId));
-    setScreen("home");
-  }
-  function renameDeck(name) { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, name, updatedAt: new Date().toISOString() })); }
-
-  /* ── library download ── */
-  function downloadFromLibrary(newDeck) {
-    setDecks(ds => [...ds, newDeck]);
-    setNewlyDownloaded(prev => new Set([...prev, newDeck.id]));
-    // zůstaneme v knihovně — navigace záměrně chybí
-  }
-  function resetStats()     { setDecks(ds => ds.map(d => d.id !== deckId ? d : { ...d, updatedAt: new Date().toISOString(), deckStats: { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 }, words: d.words.map(w => ({ ...w, score: 0, vmBox: 1, vmLastReview: null, vmNextReview: null, wStats: { total: 0, correct: 0, wrong: 0 }, updatedAt: new Date().toISOString() })) })); }
-  function addLang(l)       { setLangs(ls => [...ls, l]); setLang(l.id); }
-  function editLang(u)      { setLangs(ls => ls.map(l => l.id === u.id ? u : l)); }
-  function deleteLang(id)   { addTombstones("decks", decks.filter(d => d.lang === id).map(d => d.id)); addTombstones("folders", folders.filter(f => f.lang === id).map(f => f.id)); setDecks(ds => ds.filter(d => d.lang !== id)); setFolders(fs => fs.filter(f => f.lang !== id)); setLangs(ls => ls.filter(l => l.id !== id)); if (activeLang === id) { const rem = langs.filter(l => l.id !== id); if (rem.length) setLang(rem[0].id); } }
-
-  /* ── folder ops ── */
-  // updatedAt u složek a přesunů → změny se synchronizují (F4)
-  const isoNow = () => new Date().toISOString();
-  function addFolder(name)          { setFolders(fs => [...fs, { id: uid(), name, lang: activeLang, createdAt: now(), updatedAt: isoNow() }]); }
-  function renameFolder(fid, name)  { setFolders(fs => fs.map(f => f.id === fid ? { ...f, name, updatedAt: isoNow() } : f)); }
-  function deleteFolder(fid)        { addTombstones("folders", [fid]); setFolders(fs => fs.filter(f => f.id !== fid)); setDecks(ds => ds.map(d => d.folderId === fid ? { ...d, folderId: null, updatedAt: isoNow() } : d)); }
-  function moveDeck(did, folderId)  { setDecks(ds => ds.map(d => d.id === did ? { ...d, folderId: folderId ?? null, updatedAt: isoNow() } : d)); }
-
-  /* ── export ── */
-  function exportDeck() {
-    if (!deck) return;
-    const rows = [["Anglicky", "Česky", "Příkladová věta", "Synonyma"], ...deck.words.map(w => [w.en, w.cs, w.example || "", w.synonyms || ""])];
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, deck.name.slice(0, 31));
-    XLSX.writeFile(wb, `${deck.name}.xlsx`);
-  }
-
-  /* ── session persistence ── */
-  function saveSession(words, idx, stats, combo, deckId, mode, translDir, flipDir, folderId) {
-    try { localStorage.setItem("lc6_session", JSON.stringify({ deckId, folderId: folderId ?? null, rWords: words.map(w => w.id), rIdx: idx, rStats: stats, combo, mode, translDir, flipDir, savedAt: Date.now() })); } catch { /* úložiště nedostupné */ }
-  }
-  function clearSession()  { try { localStorage.removeItem("lc6_session"); } catch { /* úložiště nedostupné */ } }
-  function restoreSession(decksSnap) {
-    try {
-      const raw = localStorage.getItem("lc6_session");
-      if (!raw) return null;
-      const s = JSON.parse(raw);
-      if (Date.now() - s.savedAt > 86400000) { clearSession(); return null; }
-      const ds = decksSnap || decks;
-      // Studium složky: slova hledáme ve všech balíčcích složky (dříve jen v prvním)
-      const pool = s.folderId
-        ? ds.filter(d => d.folderId === s.folderId).flatMap(d => d.words)
-        : (ds.find(d => d.id === s.deckId)?.words ?? null);
-      if (!pool) return null;
-      const wm = new Map(pool.map(w => [w.id, w]));
-      const rWords = (s.rWords || []).map(id => wm.get(id)).filter(Boolean);
-      if (!rWords.length) return null;
-      return { rWords, rIdx: s.rIdx || 0, rStats: s.rStats || { ok: 0, bad: 0, xp: 0 }, combo: s.combo || 0, deckId: s.deckId, folderId: s.folderId ?? null, mode: s.mode || "transl", translDir: s.translDir || "en-cs", flipDir: s.flipDir || "en-cs" };
-    } catch { return null; }
-  }
-
-  /* ── study helpers ── */
-  function clearCard() { clearTimeout(timerRef.current); clearInterval(intervalRef.current); setFB(null); setTx(""); setMicErr(""); setTyped(""); setPronAtt(0); setWrongCountdown(0); setEvalLoading(false); setFlipped(false); setFlipFlash(null); }
-
-  /* ── get words for folder study ── */
-  function getFolderWords(folderId, decksSnap) {
-    const ds = decksSnap || decks;
-    return ds.filter(d => d.folderId === folderId).flatMap(d => d.words);
-  }
-
-  /* ── start study: single deck ── */
-  function startStudy() {
-    if (!deck?.words?.length) return;
-    setStudyFolderId(null);
-    const poolWords = buildDailyPool(deck.words);
-    const roundWords = pickRound(poolWords.length ? poolWords : deck.words);
-    const unseenIds = new Set(poolWords.map(w => w.id));
-    // Odeber z unseen slova která jdou do tohoto kola
-    roundWords.forEach(w => unseenIds.delete(w.id));
-    setPoolUnseen(unseenIds);
-    setPoolReturned(new Set());
-    setDailyPoolDone(false);
-    setRWords(roundWords); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
-    saveSession(roundWords, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, null);
-    setScreen("study");
-    autoPlayForCard(roundWords[0], 600);
-  }
-  function startFolderStudy(folderId) {
-    const allWords = getFolderWords(folderId);
-    if (!allWords.length) return;
-    setStudyFolderId(folderId);
-    const poolWords = buildDailyPool(allWords);
-    const roundWords = pickRound(poolWords.length ? poolWords : allWords);
-    const unseenIds = new Set(poolWords.map(w => w.id));
-    roundWords.forEach(w => unseenIds.delete(w.id));
-    setPoolUnseen(unseenIds);
-    setPoolReturned(new Set());
-    setDailyPoolDone(false);
-    // Use first deck in folder as "active" for session purposes
-    const firstDeck = decks.find(d => d.folderId === folderId);
-    const did = firstDeck?.id ?? deckId;
-    setDeckId(did);
-    setRWords(roundWords); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
-    saveSession(roundWords, 0, { ok: 0, bad: 0, xp: 0 }, 0, did, mode, translDir, flipDir, folderId);
-    setScreen("study");
-    autoPlayForCard(roundWords[0], 600);
-  }
-
-  function resumeStudy(decksSnap) {
-    const s = restoreSession(decksSnap || decks);
-    if (!s) return;
-    setDeckId(s.deckId);
-    setStudyFolderId(s.folderId ?? null);
-    setRWords(s.rWords); setRIdx(s.rIdx); setRStats(s.rStats); setCombo(s.combo);
-    setMode(s.mode); setTranslDir(s.translDir); setFlipDir(s.flipDir);
-    setPoolUnseen(null); setPoolReturned(new Set()); setDailyPoolDone(false);
-    clearCard(); setScreen("study");
-    // Auto-play pro první/aktuální kartu při obnovení session
-    autoPlayForCard(s.rWords[s.rIdx], 600);
-  }
-  function updateWordInDecks(wid, vmUpd, ok) {
-    setDecks(ds => ds.map(d => {
-      const hasWord = d.words.some(w => w.id === wid);
-      if (!hasWord) return d;
-      return {
-        ...d,
-        updatedAt: new Date().toISOString(),
-        words: d.words.map(dw => dw.id !== wid ? dw : {
-          ...dw, ...vmUpd,
-          score: ok ? (dw.score ?? 0) + 1 : Math.max(0, (dw.score ?? 0) - 1),
-          wStats: { total: (dw.wStats?.total ?? 0) + 1, correct: (dw.wStats?.correct ?? 0) + (ok ? 1 : 0), wrong: (dw.wStats?.wrong ?? 0) + (ok ? 0 : 1) },
-          updatedAt: new Date().toISOString(),
-        }),
-        deckStats: { totalAnswers: (d.deckStats?.totalAnswers ?? 0) + 1, correctAnswers: (d.deckStats?.correctAnswers ?? 0) + (ok ? 1 : 0), roundsCompleted: d.deckStats?.roundsCompleted ?? 0 },
-      };
-    }));
-  }
-
-
-  function nextCard() {
-    clearTimeout(timerRef.current); clearInterval(intervalRef.current);
-    synthRef.current?.cancel();
-    setFB(null); setTx(""); setMicErr(""); setTyped(""); setPronAtt(0); setWrongCountdown(0); setEvalLoading(false); setFlipped(false); setFlipFlash(null);
-    const nxt = rIdx + 1;
-
-    if (nxt >= rWords.length) {
-      finishRound();
-    } else {
-      setRIdx(nxt);
-      saveSession(rWords, nxt, rStats, combo, deckId, mode, translDir, flipDir, studyFolderId);
-      // Auto-play nové karty (pron nepřehrává při zobrazení)
-      autoPlayForCard(rWords[nxt]);
-    }
-  }
-
-  function finishRound() {
-    // Odpovědi (totalAnswers/correctAnswers) se přičítají průběžně v updateWordInDecks —
-    // tady už jen dokončené kolo (dříve se odpovědi počítaly 2×).
-    setDecks(ds => ds.map(d => {
-      if (studyFolderId ? d.folderId !== studyFolderId : d.id !== deckId) return d;
-      return { ...d, deckStats: { totalAnswers: d.deckStats?.totalAnswers ?? 0, correctAnswers: d.deckStats?.correctAnswers ?? 0, roundsCompleted: (d.deckStats?.roundsCompleted ?? 0) + 1 } };
-    }));
-    const roundBonus = 50;
-    const totalXp = rStats.xp + roundBonus;
-
-    // Data pro obrazovku konce kola počítáme synchronně z aktuálního gameStats.
-    // (Dříve se plnila uvnitř setGameStats updateru, který React spouští až při
-    //  dalším renderu → level-up a streak se nikdy nezobrazily.)
-    const updatedNow = checkStreak(gameStats);
-    const oldLvl = getLevel(updatedNow.xp ?? 0).level;
-    const newLvl = getLevel((updatedNow.xp ?? 0) + totalXp).level;
-    setRoundEndData({ xpEarned: totalXp, newLevel: newLvl > oldLvl ? newLvl : null, streak: updatedNow.dailyStreak ?? 0 });
-
-    setGameStats(prev => {
-      const updated = checkStreak(prev);
-      return { ...updated, xp: (updated.xp ?? 0) + totalXp, updatedAt: new Date().toISOString() };
-    });
-    clearSession();
-
-    // Rozhodnutí o další obrazovce — čteme aktuální hodnoty poolUnseen/poolReturned
-    // přímo (jsou v tomto renderu vždy aktuální), BEZ vnořování setState do setState.
-    // Vnořený zápis (setPoolUnseen(prev => { ...; setPoolReturned(...); setScreen(...) }))
-    // způsoboval na konci posledního/nedokončeného kola denního poolu pád na bílou
-    // obrazovku — tohle je bezpečná, lineární varianta se stejným výsledkem.
-    if (poolUnseen === null) {
-      setScreen("roundEnd");
-      return;
-    }
-    const hasUnseen = poolUnseen.size > 0;
-    const hasReturned = poolReturned.size > 0;
-    if (!hasUnseen && !hasReturned) {
-      setDailyPoolDone(true);
-      setScreen("dailyDone");
-    } else {
-      setScreen("roundEnd");
-    }
-  }
-
-  function nextRound() {
-    let allWords;
-    if (studyFolderId) {
-      allWords = getFolderWords(studyFolderId);
-    } else {
-      allWords = deck?.words ?? [];
-    }
-    const wordMap = new Map(allWords.map(w => [w.id, w]));
-
-    // Čteme aktuální poolUnseen/poolReturned přímo z closure a počítáme
-    // synchronně — žádné vnořené setState (viz vysvětlení u finishRound()).
-    let roundWords, newUnseen, newReturned;
-
-    if (poolUnseen !== null) {
-      // Máme tracking: priorita = unseen, pak returned
-      const unseenArr = [...poolUnseen].map(id => wordMap.get(id)).filter(Boolean);
-      const returnedArr = [...poolReturned].map(id => wordMap.get(id)).filter(Boolean);
-
-      if (unseenArr.length > 0) {
-        // Kolo z unseen (max 15)
-        roundWords = pickRound(unseenArr);
-        newUnseen = new Set(poolUnseen);
-        roundWords.forEach(w => newUnseen.delete(w.id));
-        newReturned = new Set(poolReturned); // returned se přenáší dál
-      } else if (returnedArr.length > 0) {
-        // Unseen vyčerpány, jedeme vrácená slova
-        roundWords = pickRound(returnedArr);
-        newUnseen = new Set(); // prázdné
-        newReturned = new Set(poolReturned);
-        roundWords.forEach(w => newReturned.delete(w.id)); // odebereme z returned
-      } else {
-        // Nemělo by nastat (finishRound by šel na dailyDone)
-        roundWords = pickRound(allWords);
-        newUnseen = new Set();
-        newReturned = new Set();
-      }
-    } else {
-      // Bez pool trackingu (pokračování po dailyDone)
-      roundWords = pickRound(allWords);
-      newUnseen = null;
-      newReturned = new Set();
-    }
-
-    setPoolUnseen(newUnseen);
-    setPoolReturned(newReturned);
-    setRWords(roundWords);
-    setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
-    saveSession(roundWords, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
-    setScreen("study");
-    // Auto-play první karty nového kola
-    autoPlayForCard(roundWords[0], 600);
-  }
-
-  /* ── continue after daily done (show remaining non-pool words) ── */
-  function continueAfterDailyDone() {
-    let allWords;
-    if (studyFolderId) {
-      allWords = getFolderWords(studyFolderId);
-    } else {
-      allWords = deck?.words ?? [];
-    }
-    // Slova s nejbližší budoucí expirací (standardní režim po vyčerpání denního poolu)
-    const futureWords = allWords
-      .filter(w => w.vmNextReview && w.vmNextReview > Date.now())
-      .sort((a, b) => a.vmNextReview - b.vmNextReview);
-    if (!futureWords.length) {
-      setScreen(studyFolderId ? "home" : "deck");
-      return;
-    }
-    setPoolUnseen(null); // bez pool trackingu
-    setPoolReturned(new Set());
-    setDailyPoolDone(false);
-    const words = futureWords.slice(0, 15);
-    setRWords(words); setRIdx(0); setRStats({ ok: 0, bad: 0, xp: 0 }); setCombo(0); clearCard();
-    saveSession(words, 0, { ok: 0, bad: 0, xp: 0 }, 0, deckId, mode, translDir, flipDir, studyFolderId);
-    setScreen("study");
-    autoPlayForCard(words[0], 600);
-  }
-  async function startListen(lang) {
-    setMicErr("");
-    if (micSt !== "ready") {
-      setMicSt("requesting");
-      try { streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true }); setMicSt("ready"); }
-      catch (err) { setMicSt("error"); setMicErr(err.name === "NotAllowedError" ? "Přístup k mikrofonu zamítnut." : err.name === "NotFoundError" ? "Mikrofon nenalezen." : `Chyba: ${err.message}`); return; }
-    }
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { setMicErr("Rozpoznávání řeči funguje pouze v Chrome/Edge."); return; }
-    const rec = new SR(); rec.lang = lang; rec.continuous = false; rec.interimResults = true;
-    rec.onresult = e => { const t = [...e.results].map(r => r[0].transcript).join(""); setTx(t); if (e.results[e.results.length - 1].isFinal) { evalAnswer(t); rec.stop(); } };
-    rec.onerror  = ev => { if (ev.error !== "aborted") setMicErr({ "not-allowed": "Mikrofon blokován.", "service-not-allowed": "Rozpoznávání blokováno — zkus psaní.", "no-speech": "Nic nezaznamenáno.", "network": "Chyba sítě." }[ev.error] ?? `Chyba: ${ev.error}`); setListen(false); };
-    rec.onend    = () => setListen(false);
-    recRef.current = rec; rec.start(); setListen(true);
-  }
-  function stopListen() { recRef.current?.stop(); setListen(false); }
-
-  /* ── speak ── */
-  // Vždy přes SpeechSynthesis — žádná závislost na API audio.
-  function speakWord(text, lang) {
-    if (!text) return;
-    doSpeak(synthRef.current, text, lang);
-  }
-
-  // Přehraje slovo při zobrazení nové karty dle pravidel auto-play.
-  // Voláno explicitně: při přechodu na novou kartu a po flip otočení.
-  //
-  // Pravidla:
-  //   transl EN→CZ : přehraj EN při zobrazení
-  //   transl CZ→EN : nepřehrávej při zobrazení
-  //   pron         : nepřehrávej při zobrazení (až od 2. pokusu)
-  //   flip EN→CZ   : přehraj EN při zobrazení přední strany
-  //   flip CZ→EN   : nepřehrávej při zobrazení přední strany
-  //
-  // delay: ms před přehráním (default 400)
-  function autoPlayForCard(w, delay = 400) {
-    if (!autoPlay || !w) return null;
-    if (mode === "transl") {
-      if (translDir === "en-cs") {
-        return setTimeout(() => speakWord(w.en, "en-US"), delay);
-      }
-      // CZ→EN: nepřehrávej
-      return null;
-    }
-    if (mode === "flip") {
-      if (flipDir === "en-cs") {
-        return setTimeout(() => speakWord(w.en, "en-US"), delay);
-      }
-      // CZ→EN: nepřehrávej
-      return null;
-    }
-    // pron: nepřehrávej při zobrazení
-    return null;
-  }
-
-  /* ── flip answer ── */
-  function flipAnswer(quality) {
-    const w = rWords[rIdx]; if (!w) return;
-    const ok = quality >= 3;
-    const xpGain = ok ? 1 : 0;
-    if (playSounds) playSound(ok ? "ok" : "bad");
-    const newCombo = quality >= 5 ? combo + 1 : 0;
-    setCombo(newCombo);
-    const vmUpd = vmUpdate(w, quality);
-    updateWordInDecks(w.id, vmUpd, ok);
-    setRStats(s => ({ ...s, ok: s.ok + (ok ? 1 : 0), bad: s.bad + (ok ? 0 : 1), xp: s.xp + xpGain }));
-    setFlipFlash(quality === 0 ? "bad" : quality === 3 ? "warn" : "ok");
-
-    if (poolUnseen !== null && (quality === 0 || quality === 3)) {
-      setPoolReturned(prev => { const next = new Set(prev); next.add(w.id); return next; });
-    }
-
-    // Zruš případné probíhající přehrávání před odpovědí
-    synthRef.current?.cancel();
-
-    // Auto-play při odpovědi:
-    // flip EN→CZ: přehraj CZ pouze při neznám (q=0)
-    // flip CZ→EN: přehraj EN pouze při neznám (q=0)
-    // tuším (q=3) ani správně (q=5) → nepřehrávej
-    if (autoPlay && quality === 0) {
-      const ans  = flipDir === "en-cs" ? (parseSyn(w.cs)[0] || w.cs) : w.en;
-      const lang = flipDir === "en-cs" ? "cs-CZ" : "en-US";
-      setTimeout(() => speakWord(ans, lang), 150);
-    }
-
-    setTimeout(() => { setFlipFlash(null); setFlipped(false); nextCardRef.current?.(); }, 420);
-  }
-
-  /* ── text/mic answer ── */
-  async function evalAnswer(text) {
-    const w = rWords[rIdx]; if (!w || feedback) return;
-    // Zruš případné probíhající přehrávání
-    synthRef.current?.cancel();
-    if (mode === "pron") {
-      const ok = localMatch(text, w.en);
-      if (ok) { commitAnswer(w, 5, text); return; }
-      const att = pronAtt + 1;
-      if (att >= 3) {
-        // 3. špatná → konec, přehraj slovo a commituj
-        speakWord(w.en, "en-US");
-        commitAnswer(w, 0, text, true);
-      } else {
-        setPronAtt(att);
-        setTx("");
-        // Od 2. pokusu (att >= 1) přehraj slovo jako nápovědu
-        if (att >= 1) {
-          setTimeout(() => speakWord(w.en, "en-US"), 300);
-        }
-      }
-      return;
-    }
-    // Hlavní pole se dělí jen podle "/" a ";" (věty obsahují čárky), synonyma i podle ","
-    const expected = (mode === "transl" && translDir === "cs-en") ? w.en : w.cs;
-    if (localMatch(text, expected, w.synonyms || "")) { commitAnswer(w, 5, text); return; }
-    commitAnswer(w, 0, text);
-  }
-
-  function commitAnswer(w, quality, given, forced = false) {
-    const ok = quality >= 3;
-    const xpGain = calcXP(quality, combo);
-    const newCombo = ok ? combo + 1 : 0;
-    setCombo(newCombo);
-    const vmUpd = vmUpdate(w, quality);
-    setFB({ ok, answer: translDir === "en-cs" ? w.cs : w.en, given, forced, quality });
-    setRStats(s => ({ ...s, ok: s.ok + (ok ? 1 : 0), bad: s.bad + (ok ? 0 : 1), xp: s.xp + xpGain }));
-    updateWordInDecks(w.id, vmUpd, ok);
-
-    // Pool: špatně → vrátit do poolReturned (do příštího kola, ne do aktuálního)
-    if (poolUnseen !== null && !ok) {
-      setPoolReturned(prev => { const next = new Set(prev); next.add(w.id); return next; });
-    }
-
-    // Auto-play správné odpovědi při špatné/nevím (transl + flip):
-    // transl EN→CZ špatně → přehraj CZ
-    // transl CZ→EN špatně → přehraj EN
-    // flip EN→CZ špatně/tuším → přehraj CZ (řeší flipAnswer)
-    // flip CZ→EN špatně/tuším → přehraj EN (řeší flipAnswer)
-    // pron: přehrávání řeší evalAnswer přímo
-    if (!ok && autoPlay && mode === "transl") {
-      const ans  = translDir === "en-cs" ? w.cs : w.en;
-      const lang = translDir === "en-cs" ? "cs-CZ" : "en-US";
-      setTimeout(() => speakWord(ans, lang), 300);
-    }
-  }
-
-  function submitTyped()  { if (typed.trim()) evalAnswer(typed.trim()); }
-
-  function dontKnow() {
-    const w = rWords[rIdx]; if (!w || feedback) return;
-    // Zruš případné probíhající přehrávání
-    synthRef.current?.cancel();
-    commitAnswer(w, 0, "");
-    // Pokud je autoPlay vypnutý, commitAnswer nepřehraje → přehraj explicitně
-    if (!autoPlay && mode === "transl") {
-      const ans  = translDir === "en-cs" ? w.cs : w.en;
-      const lang = translDir === "en-cs" ? "cs-CZ" : "en-US";
-      setTimeout(() => speakWord(ans, lang), 300);
-    }
-  }
-
-  /* ── loading spinner ── */
+  /* ── načítání ── */
   if (!loaded) return (
     <div style={{ minHeight: "100dvh", background: "var(--lc-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: 32, height: 32, border: "3px solid var(--lc-inputBorder)", borderTopColor: "var(--lc-gold)", borderRadius: "50%", animation: "spin .8s linear infinite" }} />
-      <style>{STYLE}</style>
     </div>
   );
 
-  /* ── auth guard ── */
+  /* ── přihlášení ── */
   if (session === undefined) return (
     <div style={{ minHeight: "100dvh", background: "var(--lc-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ color: "var(--lc-textDim)", fontSize: 14 }}>Načítám…</div>
@@ -821,8 +81,8 @@ export default function LexiCard() {
   if (session === null) return <AuthScreen />;
   if (recoveryMode) return <AuthScreen recoveryMode onRecoveryDone={() => setRecoveryMode(false)} />;
 
-  /* ── sync status banner ── */
-  const SyncBanner = syncStatus ? (
+  /* ── lišta úplné synchronizace ── */
+  const SyncBanner = sync.syncStatus ? (
     <div style={{
       position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)",
       background: "var(--lc-surface)", border: "1px solid var(--lc-border)",
@@ -830,148 +90,142 @@ export default function LexiCard() {
       color: "var(--lc-textDim)", zIndex: 9999, pointerEvents: "none",
       boxShadow: "0 2px 12px rgba(0,0,0,.15)"
     }}>
-      ⟳ {syncStatus}
+      ⟳ {sync.syncStatus}
     </div>
   ) : null;
 
-  /* ── routing ── */
-  if (screen === "home") return (
-    <>
-      {showOnboarding && (
-        <OnboardingModal
-          onSample={() => { loadSampleDeck(); setShowOnboarding(false); }}
-          onUpload={f => { loadFile(f); setShowOnboarding(false); }}
-          onClose={() => setShowOnboarding(false)}
+  /* ── obrazovky ── */
+  if (screen === "home") {
+    const saved = st.restoreSession(decks);
+    return (
+      <>
+        {data.showOnboarding && (
+          <OnboardingModal
+            onSample={() => { openDeck(data.createSampleDeck()); data.setShowOnboarding(false); }}
+            onUpload={f => { data.importFile(f, openDeck); data.setShowOnboarding(false); }}
+            onClose={() => data.setShowOnboarding(false)}
+          />
+        )}
+        {data.showEnVoiceWarning && (
+          <EnVoiceWarningModal onClose={() => {
+            data.setShowEnVoiceWarning(false);
+            try { localStorage.setItem("lc6_enVoiceWarned", "1"); } catch { /* úložiště nedostupné */ }
+          }} />
+        )}
+        <HomeScreen
+          decks={decks} langs={langs} activeLang={activeLang} gameStats={gameStats} folders={folders}
+          onLangSwitch={data.setLang} onAddLang={data.addLang} onEditLang={data.editLang} onDeleteLang={data.deleteLang}
+          onSelect={id => { setDeckId(id); setScreen("deck"); setNewlyDownloaded(prev => { if (!prev.has(id)) return prev; const next = new Set(prev); next.delete(id); return next; }); }}
+          onFileUpload={f => data.importFile(f, openDeck)} onSampleDeck={() => openDeck(data.createSampleDeck())}
+          onAddFolder={data.addFolder} onRenameFolder={data.renameFolder} onDeleteFolder={data.deleteFolder} onMoveDeck={data.moveDeck}
+          onFolderStudy={fid => {
+            if (saved && saved.folderId === fid) st.resumeStudy(decks); else st.startFolderStudy(fid);
+          }}
+          onFolderProblems={fid => st.startProblemStudy(fid)}
+          savedFolderId={saved?.folderId ?? null}
+          onLogout={() => supabase.auth.signOut()}
+          syncInfo={sync.syncInfo}
+          onSyncNow={() => sync.triggerSync({ full: true })}
+          getPendingCount={sync.getPendingCount}
+          userEmail={session?.user?.email}
+          username={session?.user?.user_metadata?.username}
+          onLibrary={() => setScreen("library")}
+          onLeaderboard={() => setScreen("leaderboard")}
+          lightMode={lightMode} onToggleLight={toggleLight}
+          newlyDownloaded={newlyDownloaded}
         />
-      )}
-      {showEnVoiceWarning && (
-        <EnVoiceWarningModal onClose={() => {
-          setShowEnVoiceWarning(false);
-          try { localStorage.setItem("lc6_enVoiceWarned", "1"); } catch { /* úložiště nedostupné */ }
-        }} />
-      )}
-      <HomeScreen
-        decks={decks} langs={langs} activeLang={activeLang} gameStats={gameStats} folders={folders}
-        onLangSwitch={setLang} onAddLang={addLang} onEditLang={editLang} onDeleteLang={deleteLang}
-        onSelect={id => { setDeckId(id); setScreen("deck"); setNewlyDownloaded(prev => { if (!prev.has(id)) return prev; const next = new Set(prev); next.delete(id); return next; }); }}
-        onFileUpload={loadFile} onSampleDeck={loadSampleDeck}
-        onAddFolder={addFolder} onRenameFolder={renameFolder} onDeleteFolder={deleteFolder} onMoveDeck={moveDeck}
-        onFolderStudy={fid => {
-          const s = restoreSession(decks);
-          if (s && s.folderId === fid) resumeStudy(decks); else startFolderStudy(fid);
-        }}
-        savedFolderId={restoreSession(decks)?.folderId ?? null}
-        onLogout={() => supabase.auth.signOut()}
-        syncInfo={syncInfo}
-        onSyncNow={() => triggerSync({ full: true })}
-        getPendingCount={() => countDirty(stateRef.current, tombstoneCount())}
-        userEmail={session?.user?.email}
-        username={session?.user?.user_metadata?.username}
-        onLibrary={() => setScreen("library")}
-        onLeaderboard={() => setScreen("leaderboard")}
-        lightMode={lightMode} onToggleLight={toggleLight}
-        newlyDownloaded={newlyDownloaded}
-        onClearNewlyDownloaded={() => setNewlyDownloaded(new Set())}
-      />
-      {SyncBanner}
-    </>
-  );
+        {SyncBanner}
+      </>
+    );
+  }
 
   if (screen === "library") return (
     <LibraryScreen
       activeLang={activeLang}
-      lightMode={lightMode}
       localDecks={decks}
-      onBack={() => {
-        setScreen("home");
+      onBack={() => setScreen("home")}
+      onDownload={newDeck => {
+        data.addLibraryDeck(newDeck);
+        setNewlyDownloaded(prev => new Set([...prev, newDeck.id]));
+        // zůstáváme v knihovně — navigace záměrně chybí
       }}
-      onDownload={downloadFromLibrary}
     />
   );
 
   if (screen === "leaderboard") return (
-    <LeaderboardScreen
-      currentUserId={session?.user?.id}
-      lightMode={lightMode}
-      onBack={() => setScreen("home")}
-    />
+    <LeaderboardScreen currentUserId={session?.user?.id} onBack={() => setScreen("home")} />
   );
 
   if (screen === "deck" && deck) {
     const lc = langs.find(l => l.id === deck.lang) || langs[0];
-    const savedSess = restoreSession(decks);
+    const savedSess = st.restoreSession(decks);
     const hasSavedSession = !!(savedSess && !savedSess.folderId && savedSess.deckId === deck.id);
     return (
       <DeckScreen
         deck={deck} langCfg={lc} hasSavedSession={hasSavedSession}
-        onBack={() => setScreen("home")} onStart={startStudy} onResume={() => resumeStudy(decks)}
-        onUpdate={updWord} onAddWord={addWord} onDeleteWord={delWord} onEditWord={editWordInDecks}
-        onDeleteDeck={delDeck} onRename={renameDeck} onResetStats={resetStats} onExport={exportDeck}
+        onBack={() => setScreen("home")} onStart={st.startStudy} onResume={() => st.resumeStudy(decks)}
+        onUpdate={(wid, field, val) => data.updWord(deckId, wid, field, val)}
+        onAddWord={w => data.addWord(deckId, w)}
+        onDeleteWord={wid => data.delWord(deckId, wid)}
+        onEditWord={st.editWordInDecks}
+        onDeleteDeck={() => { data.delDeck(deckId); setScreen("home"); }}
+        onRename={name => data.renameDeck(deckId, name)}
+        onResetStats={() => data.resetStats(deckId)}
+        onExport={() => data.exportDeck(deck)}
+        onStartProblems={() => st.startProblemStudy()}
       />
     );
   }
 
-  if (screen === "roundEnd") return (
-    <RoundEnd
-      stats={rStats} total={rWords.length}
-      deckName={studyFolderId ? (folders.find(f => f.id === studyFolderId)?.name ?? "Složka") : (deck?.name ?? "")}
-      xpEarned={roundEndData?.xpEarned ?? 0} newLevel={roundEndData?.newLevel}
-      streak={roundEndData?.streak} onNext={nextRound} onBack={() => setScreen(studyFolderId ? "home" : "deck")}
-    />
-  );
+  if (screen === "roundEnd") {
+    // trénink chyb: když už žádná problémová slova nezbývají, „Další kolo“ nahradí „Hotovo“
+    const noProblemsLeft = st.studyKind === "problems" && st.problemWords(st.studyFolderId).length === 0;
+    return (
+      <RoundEnd
+        stats={st.rStats} total={st.rWords.length} deckName={studyName}
+        xpEarned={st.roundEndData?.xpEarned ?? 0} newLevel={st.roundEndData?.newLevel}
+        streak={st.roundEndData?.streak}
+        onNext={noProblemsLeft ? backFromStudy : st.nextRound} onBack={backFromStudy}
+        nextLabel={noProblemsLeft ? "Hotovo ✓" : st.studyKind === "problems" ? "Další kolo chyb →" : undefined}
+        note={noProblemsLeft ? "🎉 Žádná další problémová slova" : null}
+      />
+    );
+  }
 
   if (screen === "dailyDone") return (
-    <DailyDoneScreen
-      stats={rStats}
-      deckName={studyFolderId ? (folders.find(f => f.id === studyFolderId)?.name ?? "Složka") : (deck?.name ?? "")}
-      onEnd={() => setScreen(studyFolderId ? "home" : "deck")}
-      onContinue={continueAfterDailyDone}
-    />
+    <DailyDoneScreen stats={st.rStats} deckName={studyName} onEnd={backFromStudy} onContinue={st.continueAfterDailyDone} />
   );
 
-  /* ── STUDY screen ── */
+  /* ── učení ── */
   return (
     <StudyScreen
       deck={deck} langs={langs}
-      rWords={rWords} rIdx={rIdx} rStats={rStats} combo={combo}
-      feedback={feedback} flipFlash={flipFlash} flipped={flipped}
-      listenOn={listenOn} tx={tx} micSt={micSt} micErr={micErr}
-      iMode={iMode} typed={typed} autoPlay={autoPlay} playSounds={playSounds}
-      pronAtt={pronAtt} evalLoading={evalLoading}
-      wrongCountdown={wrongCountdown} dictEntry={dictEntry}
-      mode={mode} translDir={translDir} flipDir={flipDir}
-      studyFolderId={studyFolderId}
-      folderName={studyFolderId ? (folders.find(f => f.id === studyFolderId)?.name ?? "Složka") : null}
-      onSetMode={m => { setMode(m); clearCard(); }}
-      onSetTranslDir={v => { setTranslDir(v); clearCard(); }}
-      onSetFlipDir={v => { setFlipDir(v); clearCard(); }}
-      onSetIMode={m => { setIMode(m); setMicErr(""); setTx(""); }}
-      onSetTyped={setTyped}
-      onSetAutoPlay={setAutoPlay}
-      onSetPlaySounds={v => { setPlaySounds(v); try { localStorage.setItem("lc6_playSounds", String(v)); } catch { /* úložiště nedostupné */ } }}
-      onFlip={() => {
-        // Zruš případné probíhající přehrávání před otočením
-        synthRef.current?.cancel();
-        setFlipped(true);
-        if (autoPlay) {
-          const w = rWords[rIdx];
-          if (!w) return;
-          if (flipDir === "cs-en") {
-            // Otočili jsme na EN (back side) → přehraj EN vždy
-            setTimeout(() => speakWord(w.en, "en-US"), 200);
-          }
-          // flipDir === "en-cs": otočení na CS → nepřehrávej
-        }
-      }}
-      onFlipAnswer={flipAnswer}
-      onStartListen={startListen}
-      onStopListen={stopListen}
-      onSubmitTyped={submitTyped}
-      onDontKnow={dontKnow}
-      onNextCard={nextCard}
-      onBack={() => setScreen(studyFolderId ? "home" : "deck")}
-      onSpeak={speakWord}
-      onEditWord={editWordInDecks}
+      rWords={st.rWords} rIdx={st.rIdx} rStats={st.rStats} combo={st.combo}
+      feedback={st.feedback} flipFlash={st.flipFlash} flipped={st.flipped}
+      listenOn={st.listenOn} tx={st.tx} micSt={st.micSt} micErr={st.micErr}
+      iMode={st.iMode} typed={st.typed} autoPlay={st.autoPlay} playSounds={st.playSounds}
+      pronAtt={st.pronAtt} evalLoading={st.evalLoading}
+      wrongCountdown={st.wrongCountdown} dictEntry={st.dictEntry}
+      mode={st.mode} translDir={st.translDir} flipDir={st.flipDir}
+      folderName={st.studyFolderId ? studyName : null}
+      isProblemMode={st.studyKind === "problems"}
+      onSetMode={m => { st.setMode(m); st.clearCard(); }}
+      onSetTranslDir={v => { st.setTranslDir(v); st.clearCard(); }}
+      onSetFlipDir={v => { st.setFlipDir(v); st.clearCard(); }}
+      onSetIMode={m => { st.setIMode(m); st.setMicErr(""); st.setTx(""); }}
+      onSetTyped={st.setTyped}
+      onSetAutoPlay={st.setAutoPlay}
+      onSetPlaySounds={st.setPlaySounds}
+      onFlip={st.flipCard}
+      onFlipAnswer={st.flipAnswer}
+      onStartListen={st.startListen}
+      onStopListen={st.stopListen}
+      onSubmitTyped={st.submitTyped}
+      onDontKnow={st.dontKnow}
+      onNextCard={st.nextCard}
+      onBack={backFromStudy}
+      onSpeak={st.speakWord}
+      onEditWord={st.editWordInDecks}
     />
   );
 }

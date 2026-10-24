@@ -127,7 +127,7 @@ export function LangModal({ initial, onClose, onSave, title }) {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-          <button className="btn" onClick={onClose} style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>Zrušit</button>
+          <button className="btn lc-btn-cancel" onClick={onClose}>Zrušit</button>
           <button className="btn" onClick={() => { if (valid) onSave({ ...f, label: f.label.trim(), code: (f.code || f.studyCode).toUpperCase().slice(0, 4), nativeCode: f.nativeCode.toUpperCase().trim(), studyCode: f.studyCode.toUpperCase().trim() }); }}
             style={{ flex: 2, background: valid ? C.gold : "var(--lc-xpTrack)", color: valid ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all .2s" }}>
             Uložit
@@ -186,9 +186,7 @@ export function LangDropdown({ langs, activeId, onSwitch, onAddLang, onEditLang,
             ))}
             <div style={{ borderTop: `1px solid ${C.border}`, margin: "4px 0" }} />
             <button className="btn" onClick={() => { setShowAdd(true); setOpen(false); }}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", color: "var(--lc-muted)", textAlign: "left", fontSize: 13 }}
-              onMouseEnter={e => e.currentTarget.style.background = "var(--lc-dropHover)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", color: "var(--lc-muted)", textAlign: "left", fontSize: 13 }} data-hover="menu">
               <span style={{ fontSize: 18 }}>＋</span> Přidat jazyk
             </button>
           </div>
@@ -274,7 +272,7 @@ export function AddWordModal({ onClose, onAdd }) {
           <input id="lc-ex" className="inp-sm" value={f.ex} onChange={upd("ex")} placeholder="volitelně…" onKeyDown={e => e.key === "Enter" && submit()} />
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-          <button className="btn" onClick={onClose} style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>Zrušit</button>
+          <button className="btn lc-btn-cancel" onClick={onClose}>Zrušit</button>
           <button className="btn" onClick={submit} style={{ flex: 2, background: f.en && f.cs ? C.gold : "var(--lc-xpTrack)", color: f.en && f.cs ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all .2s" }}>Přidat</button>
         </div>
       </div>
@@ -293,7 +291,7 @@ export function RenameModal({ currentName, onClose, onRename }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <input className="inp-sm" value={name} onChange={e => setName(e.target.value)} autoFocus onKeyDown={e => e.key === "Enter" && name.trim() && onRename(name.trim())} />
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn" onClick={onClose} style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>Zrušit</button>
+          <button className="btn lc-btn-cancel" onClick={onClose}>Zrušit</button>
           <button className="btn" onClick={() => name.trim() && onRename(name.trim())} style={{ flex: 2, background: name.trim() ? C.gold : "var(--lc-xpTrack)", color: name.trim() ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Uložit</button>
         </div>
       </div>
@@ -434,7 +432,7 @@ export function FolderModal({ initial, onClose, onSave, title }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <input className="inp-sm" value={name} onChange={e => setName(e.target.value)} placeholder="Název složky…" autoFocus onKeyDown={e => e.key === "Enter" && name.trim() && onSave(name.trim())} />
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn" onClick={onClose} style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>Zrušit</button>
+          <button className="btn lc-btn-cancel" onClick={onClose}>Zrušit</button>
           <button className="btn" onClick={() => name.trim() && onSave(name.trim())}
             style={{ flex: 2, background: name.trim() ? C.gold : "var(--lc-xpTrack)", color: name.trim() ? C.bg : "#4a5060", border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all .2s" }}>
             Uložit
@@ -471,7 +469,7 @@ export function MoveFolderModal({ deck, folders, currentFolderId, onClose, onMov
         ))}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <button className="btn" onClick={onClose} style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>Zrušit</button>
+        <button className="btn lc-btn-cancel" onClick={onClose}>Zrušit</button>
         <button className="btn" onClick={() => { onMove(selected); onClose(); }}
           style={{ flex: 2, background: C.gold, color: C.bg, border: "none", borderRadius: 9, padding: "10px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
           Přesunout
@@ -562,8 +560,7 @@ export function EditWordModal({ word, onClose, onSave, onDelete }) {
             onKeyDown={e => e.key === "Enter" && submit()} />
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-          <button className="btn" onClick={onClose}
-            style={{ flex: 1, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 9, padding: "10px", fontSize: 14, cursor: "pointer" }}>
+          <button className="btn lc-btn-cancel" onClick={onClose}>
             Zrušit
           </button>
           <button className="btn" onClick={submit}
