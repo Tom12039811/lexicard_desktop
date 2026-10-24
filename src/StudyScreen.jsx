@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { C, STYLE, MODES } from "./constants.js";
 import { parseSyn, comboInfo, isIOS } from "./utils.js";
 import { usePersistentState } from "./hooks.js";
@@ -286,7 +286,7 @@ export default function StudyScreen({
   tx, micSt, micErr, iMode, typed, autoPlay, playSounds,
   pronAtt, evalLoading, wrongCountdown, dictEntry,
   mode, translDir, flipDir,
-  studyFolderId, folderName,
+  folderName,
   onSetMode, onSetTranslDir, onSetFlipDir,
   onSetIMode, onSetTyped, onSetAutoPlay, onSetPlaySounds,
   onFlip, onFlipAnswer, onStartListen, onStopListen,
@@ -314,7 +314,6 @@ export default function StudyScreen({
 
   const lc = langs.find(l => l.id === deck?.lang) || langs[0];
   const nativeCode = lc?.nativeCode || "CZ";
-  const studyCode = lc?.studyCode || "EN";
   const studyFlag = lc?.flag || "🇬🇧";
 
   return (

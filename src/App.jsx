@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 
-import { DEFAULT_LANGS, SAMPLE_WORDS, C, STYLE } from "./constants.js";
+import { DEFAULT_LANGS, SAMPLE_WORDS, STYLE } from "./constants.js";
 import {
   uid, now, pickRound, vmUpdate, getLevel, calcXP,
   checkStreak, fetchDict, doSpeak, playSound,
@@ -110,7 +110,7 @@ export default function LexiCard() {
   // dailyPoolDone: true = všechna dnešní slova naučena → daily done screen
   const [poolUnseen, setPoolUnseen]     = useState(null); // null = bez pool trackingu
   const [poolReturned, setPoolReturned] = useState(new Set());
-  const [dailyPoolDone, setDailyPoolDone] = useState(false);
+  const [, setDailyPoolDone] = useState(false);
 
   const recRef      = useRef(null);
   const streamRef   = useRef(null);
@@ -202,24 +202,6 @@ export default function LexiCard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decks, folders, gameStats, loaded, session]);
 
-  /* Záloha všech dat do souboru JSON */
-  function exportBackup() {
-    const data = {
-      app: "LexiCard", version: 1, exportedAt: new Date().toISOString(),
-      user: session?.user?.email ?? null,
-      decks, folders, gameStats, activeLang, langs: langs.filter(l => l.custom),
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `lexicard-zaloha-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-  }
-
   /* ── localStorage load ── */
   useEffect(() => {
     try {
@@ -239,6 +221,7 @@ export default function LexiCard() {
               synonyms: Array.isArray(w.synonyms) ? w.synonyms.join(", ") : (w.synonyms ?? ""),
             })),
           }));
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- jednorázové načtení z localStorage
           setDecks(migratedDecks);
         }
         if (d.lang)      setLang(d.lang);
@@ -248,7 +231,7 @@ export default function LexiCard() {
       } else {
         setShowOnboarding(true);
       }
-    } catch {}
+    } catch { /* úložiště nedostupné */ }
     setLoaded(true);
 
     // Zkontroluj dostupnost anglického hlasu — jednorázově
@@ -310,10 +293,11 @@ export default function LexiCard() {
     if (screen !== "study" || !rWords[rIdx]) return;
     const w = rWords[rIdx];
     const needEn = mode !== "cs-en";
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset slovníkového záznamu
     if (!needEn) { setDictEntry(null); return; }
     setDictEntry(null);
     fetchDict(w.en).then(e => { if (rWords[rIdx]?.id === w.id) setDictEntry(e); });
-  }, [rIdx, mode, screen]);
+  }, [rIdx, mode, screen]); // eslint-disable-line react-hooks/exhaustive-deps -- záměrně jen při změně karty/režimu
 
   useEffect(() => { nextCardRef.current = nextCard; });
 
@@ -324,12 +308,13 @@ export default function LexiCard() {
     if (feedback.ok) {
       timerRef.current = setTimeout(() => nextCardRef.current?.(), 900);
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- odpočet po špatné odpovědi
       setWrongCountdown(5); let c = 5;
       intervalRef.current = setInterval(() => { c--; setWrongCountdown(c); if (c <= 0) clearInterval(intervalRef.current); }, 1000);
       timerRef.current = setTimeout(() => nextCardRef.current?.(), 5200);
     }
     return () => { clearTimeout(timerRef.current); clearInterval(intervalRef.current); };
-  }, [feedback]);
+  }, [feedback]); // eslint-disable-line react-hooks/exhaustive-deps -- záměrně jen při změně feedbacku
 
 
   const deck = decks.find(d => d.id === deckId) ?? null;
@@ -422,9 +407,9 @@ export default function LexiCard() {
 
   /* ── session persistence ── */
   function saveSession(words, idx, stats, combo, deckId, mode, translDir, flipDir, folderId) {
-    try { localStorage.setItem("lc6_session", JSON.stringify({ deckId, folderId: folderId ?? null, rWords: words.map(w => w.id), rIdx: idx, rStats: stats, combo, mode, translDir, flipDir, savedAt: Date.now() })); } catch {}
+    try { localStorage.setItem("lc6_session", JSON.stringify({ deckId, folderId: folderId ?? null, rWords: words.map(w => w.id), rIdx: idx, rStats: stats, combo, mode, translDir, flipDir, savedAt: Date.now() })); } catch { /* úložiště nedostupné */ }
   }
-  function clearSession()  { try { localStorage.removeItem("lc6_session"); } catch {} }
+  function clearSession()  { try { localStorage.removeItem("lc6_session"); } catch { /* úložiště nedostupné */ } }
   function restoreSession(decksSnap) {
     try {
       const raw = localStorage.getItem("lc6_session");
@@ -862,7 +847,7 @@ export default function LexiCard() {
       {showEnVoiceWarning && (
         <EnVoiceWarningModal onClose={() => {
           setShowEnVoiceWarning(false);
-          try { localStorage.setItem("lc6_enVoiceWarned", "1"); } catch {}
+          try { localStorage.setItem("lc6_enVoiceWarned", "1"); } catch { /* úložiště nedostupné */ }
         }} />
       )}
       <HomeScreen
@@ -879,7 +864,6 @@ export default function LexiCard() {
         onLogout={() => supabase.auth.signOut()}
         syncInfo={syncInfo}
         onSyncNow={() => triggerSync({ full: true })}
-        onExportBackup={exportBackup}
         getPendingCount={() => countDirty(stateRef.current, tombstoneCount())}
         userEmail={session?.user?.email}
         username={session?.user?.user_metadata?.username}
@@ -964,7 +948,7 @@ export default function LexiCard() {
       onSetIMode={m => { setIMode(m); setMicErr(""); setTx(""); }}
       onSetTyped={setTyped}
       onSetAutoPlay={setAutoPlay}
-      onSetPlaySounds={v => { setPlaySounds(v); try { localStorage.setItem("lc6_playSounds", String(v)); } catch {} }}
+      onSetPlaySounds={v => { setPlaySounds(v); try { localStorage.setItem("lc6_playSounds", String(v)); } catch { /* úložiště nedostupné */ } }}
       onFlip={() => {
         // Zruš případné probíhající přehrávání před otočením
         synthRef.current?.cancel();

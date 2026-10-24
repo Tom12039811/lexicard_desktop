@@ -13,7 +13,7 @@ function fmtSyncTime(iso) {
   return d.toDateString() === n.toDateString() ? hm : `${d.getDate()}. ${d.getMonth() + 1}. ${hm}`;
 }
 
-function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLight, syncInfo, onSyncNow, onExportBackup, getPendingCount }) {
+function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLight, syncInfo, onSyncNow, getPendingCount }) {
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const ref = useRef(null);
@@ -97,19 +97,6 @@ function ProfileDropdown({ userEmail, username, onLogout, lightMode, onToggleLig
             >
               <span style={{ fontSize: 15 }}>✏️</span> Upravit profil
             </button>
-
-            {/* Záloha */}
-            {onExportBackup && (
-              <button
-                className="btn"
-                onClick={() => { onExportBackup(); setOpen(false); }}
-                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", color: C.textDim, fontSize: 13, textAlign: "left", borderTop: `1px solid ${C.border}` }}
-                onMouseEnter={e => e.currentTarget.style.background = "var(--lc-dropHover)"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-              >
-                <span style={{ fontSize: 15 }}>💾</span> Stáhnout zálohu (JSON)
-              </button>
-            )}
 
             <div style={{ borderTop: `1px solid ${C.border}` }} />
 
@@ -267,6 +254,47 @@ function ProfileModal({ userEmail, username, onClose }) {
   );
 }
 
+/* ── Karta balíčku (mimo HomeScreen → nevytváří se znovu při každém vykreslení) ── */
+function DeckCard({ d, isNew, onSelect, onMove }) {
+  const mastered = d.words.filter(isMastered).length;
+  const pct = d.words.length ? Math.round(mastered / d.words.length * 100) : 0;
+  const due = dueCount(d.words);
+  const sr = d.deckStats?.totalAnswers ? Math.round(d.deckStats.correctAnswers / d.deckStats.totalAnswers * 100) : null;
+  const nameLen = d.name?.length ?? 0;
+  const nameFontSize = nameLen > 34 ? 11 : nameLen > 26 ? 12 : nameLen > 20 ? 13.5 : 16;
+  return (
+    <div style={{ position: "relative" }}>
+      <div onClick={() => onSelect(d.id)} className="btn"
+        style={{
+          background: C.card,
+          border: `1px solid ${isNew ? "#4a90d9" : C.border}`,
+          borderRadius: 16,
+          padding: "1.2rem",
+          cursor: "pointer",
+          transition: "border-color .2s, box-shadow .2s",
+          textAlign: "left",
+          width: "100%",
+          ...(isNew ? { boxShadow: "0 0 0 3px rgba(74,144,217,0.25), 0 0 16px rgba(74,144,217,0.15)" } : {}),
+        }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--lc-selBorder)"; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = isNew ? "#4a90d9" : C.border; }}>
+        {due > 0 && <div style={{ position: "absolute", top: 10, right: 34, background: "var(--lc-dueBg)", border: "1px solid var(--lc-dueBorder)", borderRadius: 20, padding: "2px 7px", fontSize: 10, color: "var(--lc-dueText)", fontWeight: 600 }}>{due} dnes</div>}
+        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4, lineHeight: 1.2, paddingRight: 42, display: "flex", alignItems: "center", gap: 5 }}>
+          {d.fromLibrary && <span title="Staženo z knihovny" style={{ fontSize: 12, flexShrink: 0 }}>📚</span>}
+          <span style={{ fontSize: nameFontSize, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>{d.words.length} slov · {mastered} zvl.{sr !== null ? ` · ${sr}%` : ""}</div>
+        <div style={{ background: "#161e30", borderRadius: 3, height: 3 }}><div style={{ width: `${pct}%`, height: "100%", background: C.gold, borderRadius: 3 }} /></div>
+        <div style={{ fontSize: 10, color: C.goldDim, marginTop: 4, textAlign: "right" }}>{pct}% zvládnuto</div>
+      </div>
+      <button className="btn" onClick={e => { e.stopPropagation(); onMove(d); }} title="Přesunout do složky"
+        style={{ position: "absolute", top: 8, right: 6, color: C.mutedDark, fontSize: 13, padding: "3px 5px", lineHeight: 1 }}
+        onMouseEnter={e => e.currentTarget.style.color = C.gold}
+        onMouseLeave={e => e.currentTarget.style.color = C.mutedDark}>📁</button>
+    </div>
+  );
+}
+
 /* ── HomeScreen ───────────────────────────────────────────────── */
 export default function HomeScreen({
   decks, langs, activeLang, gameStats, folders,
@@ -277,9 +305,8 @@ export default function HomeScreen({
   onLibrary, onLeaderboard,
   lightMode, onToggleLight,
   newlyDownloaded = new Set(),
-  onClearNewlyDownloaded,
   savedFolderId = null,
-  syncInfo, onSyncNow, onExportBackup, getPendingCount,
+  syncInfo, onSyncNow, getPendingCount,
 }) {
   // Řazení balíčků a rozbalení složek si pamatujeme (per zařízení)
   const [sort, setSort] = usePersistentState("lc6_deckSort", "date-desc", v => typeof v === "string");
@@ -301,46 +328,6 @@ export default function HomeScreen({
   const decksInFolder = fid => ld.filter(d => d.folderId === fid);
   const looseDecks = ld.filter(d => !d.folderId || !langFolders.find(f => f.id === d.folderId));
 
-  function DeckCard({ d }) {
-    const mastered = d.words.filter(isMastered).length;
-    const pct = d.words.length ? Math.round(mastered / d.words.length * 100) : 0;
-    const due = dueCount(d.words);
-    const sr = d.deckStats?.totalAnswers ? Math.round(d.deckStats.correctAnswers / d.deckStats.totalAnswers * 100) : null;
-    const isNew = newlyDownloaded.has(d.id);
-    const nameLen = d.name?.length ?? 0;
-    const nameFontSize = nameLen > 34 ? 11 : nameLen > 26 ? 12 : nameLen > 20 ? 13.5 : 16;
-    return (
-      <div style={{ position: "relative" }}>
-        <div onClick={() => onSelect(d.id)} className="btn"
-          style={{
-            background: C.card,
-            border: `1px solid ${isNew ? "#4a90d9" : C.border}`,
-            borderRadius: 16,
-            padding: "1.2rem",
-            cursor: "pointer",
-            transition: "border-color .2s, box-shadow .2s",
-            textAlign: "left",
-            width: "100%",
-            ...(isNew ? { boxShadow: "0 0 0 3px rgba(74,144,217,0.25), 0 0 16px rgba(74,144,217,0.15)" } : {}),
-          }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--lc-selBorder)"; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = isNew ? "#4a90d9" : C.border; }}>
-          {due > 0 && <div style={{ position: "absolute", top: 10, right: 34, background: "var(--lc-dueBg)", border: "1px solid var(--lc-dueBorder)", borderRadius: 20, padding: "2px 7px", fontSize: 10, color: "var(--lc-dueText)", fontWeight: 600 }}>{due} dnes</div>}
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4, lineHeight: 1.2, paddingRight: 42, display: "flex", alignItems: "center", gap: 5 }}>
-            {d.fromLibrary && <span title="Staženo z knihovny" style={{ fontSize: 12, flexShrink: 0 }}>📚</span>}
-            <span style={{ fontSize: nameFontSize, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
-          </div>
-          <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>{d.words.length} slov · {mastered} zvl.{sr !== null ? ` · ${sr}%` : ""}</div>
-          <div style={{ background: "#161e30", borderRadius: 3, height: 3 }}><div style={{ width: `${pct}%`, height: "100%", background: C.gold, borderRadius: 3 }} /></div>
-          <div style={{ fontSize: 10, color: C.goldDim, marginTop: 4, textAlign: "right" }}>{pct}% zvládnuto</div>
-        </div>
-        <button className="btn" onClick={e => { e.stopPropagation(); setMoveInfo({ deck: d }); }} title="Přesunout do složky"
-          style={{ position: "absolute", top: 8, right: 6, color: C.mutedDark, fontSize: 13, padding: "3px 5px", lineHeight: 1 }}
-          onMouseEnter={e => e.currentTarget.style.color = C.gold}
-          onMouseLeave={e => e.currentTarget.style.color = C.mutedDark}>📁</button>
-      </div>
-    );
-  }
 
   return (
     <div style={{ minHeight: "100dvh", background: C.bg, fontFamily: "'Lora',Georgia,serif", color: C.text, display: "flex", flexDirection: "column", alignItems: "center", padding: "1.5rem 1rem", overscrollBehavior: "none" }}>
@@ -370,7 +357,6 @@ export default function HomeScreen({
               onToggleLight={onToggleLight}
               syncInfo={syncInfo}
               onSyncNow={onSyncNow}
-              onExportBackup={onExportBackup}
               getPendingCount={getPendingCount}
             />
           )}
@@ -518,7 +504,7 @@ export default function HomeScreen({
                     <div className="deck-grid" style={{ padding: "0 10px 10px" }}>
                       {fDecks.length === 0
                         ? <div style={{ color: C.muted, fontSize: 12, fontStyle: "italic", padding: "8px 4px", gridColumn: "1/-1" }}>Složka je prázdná — přesuň sem balíček pomocí 📁</div>
-                        : fDecks.map(d => <DeckCard key={d.id} d={d} />)}
+                        : fDecks.map(d => <DeckCard key={d.id} d={d} isNew={newlyDownloaded.has(d.id)} onSelect={onSelect} onMove={deck => setMoveInfo({ deck })} />)}
                     </div>
                   )}
                 </div>
@@ -528,7 +514,7 @@ export default function HomeScreen({
               <div>
                 {langFolders.length > 0 && <div style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Bez složky</div>}
                 <div className="deck-grid">
-                  {looseDecks.map(d => <DeckCard key={d.id} d={d} />)}
+                  {looseDecks.map(d => <DeckCard key={d.id} d={d} isNew={newlyDownloaded.has(d.id)} onSelect={onSelect} onMove={deck => setMoveInfo({ deck })} />)}
                 </div>
               </div>
             )}

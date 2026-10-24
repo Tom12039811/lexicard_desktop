@@ -139,7 +139,7 @@ export function doSpeak(synth, text, lang) {
             u2.lang = lang; u2.rate = 0.9; u2.volume = 1.0;
             const v2 = pickVoice(lang); if (v2) u2.voice = v2;
             synth.speak(u2);
-          } catch {}
+          } catch { /* ignore */ }
         }, 150);
       };
 
@@ -148,7 +148,7 @@ export function doSpeak(synth, text, lang) {
       setTimeout(() => {
         if (!done && synth.speaking) synth.cancel();
       }, 5000);
-    } catch {}
+    } catch { /* ignore */ }
   };
 
   // Pokud hlasy ještě nejsou načteny (prázdný seznam), počkej na onvoiceschanged
@@ -203,7 +203,7 @@ export function playSound(type) {
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.28);
     }
-  } catch {}
+  } catch { /* ignore */ }
 }
 
 /* ── 4. Optimalizace Levenshtein (early exit) ──────────────── */

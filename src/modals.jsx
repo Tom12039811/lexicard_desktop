@@ -301,42 +301,36 @@ export function RenameModal({ currentName, onClose, onRename }) {
   );
 }
 
-/* ─── Stats Modal ────────────────────────────────────────────── */
-export function StatsModal({ deck, onClose, onReset }) {
-  const [sk, setSk] = useState("total-desc");
-  const sorted = sortStats(deck.words, sk);
-  const ds = deck.deckStats ?? { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 };
-  const mastered = deck.words.filter(isMastered).length;
+/* ─── Sdílené části statistik (balíček i složka) ─────────────── */
+function StatTiles({ total, correct }) {
   return (
-    <Modal onClose={onClose} wide>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14, gap: 12 }}>
-        <div>
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: 3 }}>Statistika — {deck.name}</div>
-          <div style={{ fontSize: 12, color: C.muted }}>{deck.words.length} slovíček · {mastered} zvládnuto · {ds.roundsCompleted} kol</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 7, marginBottom: 14 }}>
+      {[
+        { lbl: "Celkem",    val: total || 0,                                            c: "#7090c8", bg: "var(--lc-statBg1)" },
+        { lbl: "Správně",   val: correct || 0,                                          c: C.ok,      bg: C.okBg },
+        { lbl: "Špatně",    val: (total || 0) - (correct || 0),                         c: C.err,     bg: C.errBg },
+        { lbl: "Úspěšnost", val: total ? `${Math.round(correct / total * 100)}%` : "—", c: C.gold,    bg: "var(--lc-statBg5)" },
+      ].map(({ lbl, val, c, bg }) => (
+        <div key={lbl} style={{ background: bg, borderRadius: 9, padding: "8px 6px", textAlign: "center" }}>
+          <div style={{ fontSize: 9, color: c, textTransform: "uppercase", letterSpacing: .8, marginBottom: 2 }}>{lbl}</div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: c }}>{val}</div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-          <button className="btn" onClick={onReset} style={{ border: "1px solid var(--lc-errBorder)", color: "var(--lc-err)", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>🔄 Reset</button>
-          <button className="btn" onClick={onClose} style={{ color: C.muted, fontSize: 22, lineHeight: 1 }}>×</button>
-        </div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 7, marginBottom: 14 }}>
-        {[
-          { lbl: "Celkem", val: ds.totalAnswers || 0, c: "#7090c8", bg: "var(--lc-statBg1)" },
-          { lbl: "Správně", val: ds.correctAnswers || 0, c: C.ok, bg: C.okBg },
-          { lbl: "Špatně", val: (ds.totalAnswers || 0) - (ds.correctAnswers || 0), c: C.err, bg: C.errBg },
-          { lbl: "Úspěšnost", val: ds.totalAnswers ? `${Math.round(ds.correctAnswers / ds.totalAnswers * 100)}%` : "—", c: C.gold, bg: "#1a1608" },
-        ].map(({ lbl, val, c, bg }) => (
-          <div key={lbl} style={{ background: bg, borderRadius: 9, padding: "8px 6px", textAlign: "center" }}>
-            <div style={{ fontSize: 9, color: c, textTransform: "uppercase", letterSpacing: .8, marginBottom: 2 }}>{lbl}</div>
-            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: c }}>{val}</div>
-          </div>
-        ))}
-      </div>
+      ))}
+    </div>
+  );
+}
+
+function WordStatsTable({ words }) {
+  const [sk, setSk] = useState("total-desc");
+  const [nowMs] = useState(() => Date.now());   // jeden čas pro celé vykreslení tabulky
+  const sorted = sortStats(words, sk);
+  return (
+    <>
       <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 10, flexWrap: "wrap" }}>
         <span style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 1.5, flexShrink: 0 }}>Řadit:</span>
         {STAT_COLS.map(s => (
           <button key={s.id} className="btn" onClick={() => setSk(s.id)}
-            style={{ background: sk === s.id ? "#1a2a40" : "transparent", border: `1px solid ${sk === s.id ? "#2e4565" : C.border}`, color: sk === s.id ? C.gold : C.muted, borderRadius: 7, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}>
+            style={{ background: sk === s.id ? "var(--lc-selBg)" : "transparent", border: `1px solid ${sk === s.id ? "var(--lc-selBorder)" : C.border}`, color: sk === s.id ? C.gold : C.muted, borderRadius: 7, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}>
             {s.label}
           </button>
         ))}
@@ -344,7 +338,7 @@ export function StatsModal({ deck, onClose, onReset }) {
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 480 }}>
           <thead>
-            <tr style={{ borderBottom: `1px solid #1e2535` }}>
+            <tr style={{ borderBottom: `1px solid ${C.border}` }}>
               {["#", "Anglicky", "Česky", "Synonyma", "Prox.", "✓", "✗", "Úsp.", "Krabička"].map(h => (
                 <th key={h} style={{ padding: "6px 8px", color: C.muted, fontWeight: 500, fontSize: 10, textTransform: "uppercase", letterSpacing: 1, textAlign: h === "#" ? "center" : "left", whiteSpace: "nowrap" }}>{h}</th>
               ))}
@@ -356,10 +350,9 @@ export function StatsModal({ deck, onClose, onReset }) {
               const pct = ws.total ? Math.round(ws.correct / ws.total * 100) : null;
               const pc = pct === null ? C.muted : pct >= 80 ? C.ok : pct >= 50 ? C.gold : C.err;
               const syns = [...parseSyn(w.cs).slice(1), ...parseSyn(w.synonyms || "")].join(", ");
-              const daysLeft = w.vmNextReview ? Math.max(0, Math.round((w.vmNextReview - Date.now()) / 86400000)) : null;
-              const vmBox = vmGetBox(w);
+              const daysLeft = w.vmNextReview ? Math.max(0, Math.round((w.vmNextReview - nowMs) / 86400000)) : null;
               return (
-                <tr key={w.id} style={{ borderBottom: `1px solid #161e2e` }}
+                <tr key={w.id} style={{ borderBottom: `1px solid ${C.border}` }}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--lc-cardAlt)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "7px 8px", color: C.muted, textAlign: "center", fontSize: 10 }}>{i + 1}</td>
@@ -375,7 +368,7 @@ export function StatsModal({ deck, onClose, onReset }) {
                       : <span style={{ color: C.mutedDark }}>—</span>}
                   </td>
                   <td style={{ padding: "7px 8px", textAlign: "center" }}>
-                    <span style={{ background: "#1a2035", color: C.gold, borderRadius: 20, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>#{vmBox}</span>
+                    <span style={{ background: "var(--lc-selBg)", color: C.gold, borderRadius: 20, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>#{vmGetBox(w)}</span>
                     {daysLeft !== null && <span style={{ color: C.muted, fontSize: 10, marginLeft: 4 }}>{daysLeft === 0 ? "dnes" : `${daysLeft}d`}</span>}
                   </td>
                 </tr>
@@ -384,6 +377,28 @@ export function StatsModal({ deck, onClose, onReset }) {
           </tbody>
         </table>
       </div>
+    </>
+  );
+}
+
+/* ─── Stats Modal (balíček) ──────────────────────────────────── */
+export function StatsModal({ deck, onClose, onReset }) {
+  const ds = deck.deckStats ?? { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 };
+  const mastered = deck.words.filter(isMastered).length;
+  return (
+    <Modal onClose={onClose} wide>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14, gap: 12 }}>
+        <div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: 3 }}>Statistika — {deck.name}</div>
+          <div style={{ fontSize: 12, color: C.muted }}>{deck.words.length} slovíček · {mastered} zvládnuto · {ds.roundsCompleted ?? 0} kol</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+          <button className="btn" onClick={onReset} style={{ border: "1px solid var(--lc-errBorder)", color: "var(--lc-err)", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>🔄 Reset</button>
+          <button className="btn" onClick={onClose} style={{ color: C.muted, fontSize: 22, lineHeight: 1 }}>×</button>
+        </div>
+      </div>
+      <StatTiles total={ds.totalAnswers} correct={ds.correctAnswers} />
+      <WordStatsTable words={deck.words} />
     </Modal>
   );
 }
@@ -468,20 +483,12 @@ export function MoveFolderModal({ deck, folders, currentFolderId, onClose, onMov
 
 /* ─── Folder Stats Modal ─────────────────────────────────────── */
 export function FolderStatsModal({ folder, decks, onClose }) {
-  const [sk, setSk] = useState("total-desc");
-
-  // Aggregate all words from all decks in this folder
   const folderDecks = decks.filter(d => d.folderId === folder.id);
   const allWords = folderDecks.flatMap(d => d.words);
-
-  // Aggregate deckStats across all decks
-  const totalAnswers   = folderDecks.reduce((s, d) => s + (d.deckStats?.totalAnswers   ?? 0), 0);
-  const correctAnswers = folderDecks.reduce((s, d) => s + (d.deckStats?.correctAnswers ?? 0), 0);
+  const totalAnswers    = folderDecks.reduce((s, d) => s + (d.deckStats?.totalAnswers   ?? 0), 0);
+  const correctAnswers  = folderDecks.reduce((s, d) => s + (d.deckStats?.correctAnswers ?? 0), 0);
   const roundsCompleted = folderDecks.reduce((s, d) => s + (d.deckStats?.roundsCompleted ?? 0), 0);
   const mastered = allWords.filter(isMastered).length;
-
-  const sorted = sortStats(allWords, sk);
-
   return (
     <Modal onClose={onClose} wide>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14, gap: 12 }}>
@@ -491,71 +498,8 @@ export function FolderStatsModal({ folder, decks, onClose }) {
         </div>
         <button className="btn" onClick={onClose} style={{ color: C.muted, fontSize: 22, lineHeight: 1, flexShrink: 0 }}>×</button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 7, marginBottom: 14 }}>
-        {[
-          { lbl: "Celkem",    val: totalAnswers || 0,                                                                          c: "#7090c8", bg: "var(--lc-statBg1)" },
-          { lbl: "Správně",   val: correctAnswers || 0,                                                                        c: C.ok,      bg: C.okBg },
-          { lbl: "Špatně",    val: (totalAnswers || 0) - (correctAnswers || 0),                                                c: C.err,     bg: C.errBg },
-          { lbl: "Úspěšnost", val: totalAnswers ? `${Math.round(correctAnswers / totalAnswers * 100)}%` : "—",                 c: C.gold,    bg: "#1a1608" },
-        ].map(({ lbl, val, c, bg }) => (
-          <div key={lbl} style={{ background: bg, borderRadius: 9, padding: "8px 6px", textAlign: "center" }}>
-            <div style={{ fontSize: 9, color: c, textTransform: "uppercase", letterSpacing: .8, marginBottom: 2 }}>{lbl}</div>
-            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: c }}>{val}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10, color: C.mutedDark, textTransform: "uppercase", letterSpacing: 1.5, flexShrink: 0 }}>Řadit:</span>
-        {STAT_COLS.map(s => (
-          <button key={s.id} className="btn" onClick={() => setSk(s.id)}
-            style={{ background: sk === s.id ? "#1a2a40" : "transparent", border: `1px solid ${sk === s.id ? "#2e4565" : C.border}`, color: sk === s.id ? C.gold : C.muted, borderRadius: 7, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}>
-            {s.label}
-          </button>
-        ))}
-      </div>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 480 }}>
-          <thead>
-            <tr style={{ borderBottom: `1px solid #1e2535` }}>
-              {["#", "Anglicky", "Česky", "Synonyma", "Prox.", "✓", "✗", "Úsp.", "Krabička"].map(h => (
-                <th key={h} style={{ padding: "6px 8px", color: C.muted, fontWeight: 500, fontSize: 10, textTransform: "uppercase", letterSpacing: 1, textAlign: h === "#" ? "center" : "left", whiteSpace: "nowrap" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((w, i) => {
-              const ws = w.wStats ?? { total: 0, correct: 0, wrong: 0 };
-              const pct = ws.total ? Math.round(ws.correct / ws.total * 100) : null;
-              const pc = pct === null ? C.muted : pct >= 80 ? C.ok : pct >= 50 ? C.gold : C.err;
-              const syns = [...parseSyn(w.cs).slice(1), ...parseSyn(w.synonyms || "")].join(", ");
-              const daysLeft = w.vmNextReview ? Math.max(0, Math.round((w.vmNextReview - Date.now()) / 86400000)) : null;
-              const vmBox = vmGetBox(w);
-              return (
-                <tr key={w.id} style={{ borderBottom: `1px solid #161e2e` }}
-                  onMouseEnter={e => e.currentTarget.style.background = "var(--lc-cardAlt)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <td style={{ padding: "7px 8px", color: C.muted, textAlign: "center", fontSize: 10 }}>{i + 1}</td>
-                  <td style={{ padding: "7px 8px", color: C.text, fontWeight: 500 }}>{w.en}</td>
-                  <td style={{ padding: "7px 8px", color: C.textDim }}>{parseSyn(w.cs)[0] || w.cs}</td>
-                  <td style={{ padding: "7px 8px", color: "var(--lc-muted)", fontSize: 11, fontStyle: "italic" }}>{syns || "—"}</td>
-                  <td style={{ padding: "7px 8px", color: C.textDim, textAlign: "center" }}>{ws.total || "—"}</td>
-                  <td style={{ padding: "7px 8px", color: C.ok, textAlign: "center" }}>{ws.correct || "—"}</td>
-                  <td style={{ padding: "7px 8px", color: C.err, textAlign: "center" }}>{ws.wrong || "—"}</td>
-                  <td style={{ padding: "7px 8px", textAlign: "center" }}>
-                    {pct !== null
-                      ? <span style={{ background: pc + "22", color: pc, borderRadius: 20, padding: "2px 8px", fontWeight: 600, fontSize: 11 }}>{pct}%</span>
-                      : <span style={{ color: C.mutedDark }}>—</span>}
-                  </td>
-                  <td style={{ padding: "7px 8px", textAlign: "center" }}>
-                    <span style={{ background: "#1a2035", color: C.gold, borderRadius: 20, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>#{vmBox}</span>
-                    {daysLeft !== null && <span style={{ color: C.muted, fontSize: 10, marginLeft: 4 }}>{daysLeft === 0 ? "dnes" : `${daysLeft}d`}</span>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <StatTiles total={totalAnswers} correct={correctAnswers} />
+      <WordStatsTable words={allWords} />
     </Modal>
   );
 }

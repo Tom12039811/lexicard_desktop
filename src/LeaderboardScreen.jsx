@@ -26,6 +26,7 @@ export default function LeaderboardScreen({ onBack, currentUserId, lightMode }) 
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- offline: ukončit načítání
     if (!isOnline) { setLoading(false); return; }
 
     setLoading(true);

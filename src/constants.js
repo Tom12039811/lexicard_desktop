@@ -1,6 +1,3 @@
-/* ─── Vocabulary Miner Box Intervals ─────────────────────────── */
-export const VM_INTERVALS = [0, 1, 2, 3, 5, 10, 30, 60, 90]; // index = číslo krabičky (1-8)
-
 /* ─── XP & Levels ────────────────────────────────────────────── */
 export const LVL_XP = [0, 50, 150, 300, 500, 800, 1200, 1800, 2600, 3600, 5000, 7000, 10000];
 export const LVL_NAMES = [
@@ -45,14 +42,6 @@ export const DECK_SORTS = [
   {id:"name-asc", label:"A–Z"},
   {id:"name-desc",label:"Z–A"},
 ];
-export const WORD_SORTS = [
-  {id:"date-asc", label:"Pořadí"},
-  {id:"en-asc",   label:"EN ↑"},
-  {id:"en-desc",  label:"EN ↓"},
-  {id:"cs-asc",   label:"CS ↑"},
-  {id:"cs-desc",  label:"CS ↓"},
-  {id:"date-desc",label:"Datum ↓"},
-];
 export const STAT_COLS = [
   {id:"en-asc",      label:"Slovo ↑"},
   {id:"total-desc",  label:"Procvičeno ↓"},
@@ -85,7 +74,6 @@ export const C = {
 
 /* ─── Global CSS ─────────────────────────────────────────────── */
 export const STYLE = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Lora:ital,wght@0,400;0,500;1,400&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 
   /* ── Dark theme (výchozí) ── */

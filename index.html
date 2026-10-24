@@ -1,10 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="cs">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>lexicard</title>
+    <title>LexiCard</title>
+    <meta name="description" content="Učení anglických slovíček s opakováním v krabičkách" />
+    <meta name="theme-color" content="#0b0f16" />
+
+    <!-- ikony + instalace na plochu (PWA) -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="LexiCard" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+
+    <!-- fonty: načtou se jednou zde (dříve @import v každé obrazovce) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" />
+
+    <style>html,body{background:#0b0f16;margin:0}</style>
   </head>
   <body>
     <div id="root"></div>

@@ -1,16 +1,38 @@
-# React + Vite
+# LexiCard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Webová aplikace na učení slovíček (čeština ↔ angličtina) s opakováním v krabičkách,
+knihovnou veřejných balíčků, žebříčkem a synchronizací mezi zařízeními.
 
-Currently, two official plugins are available:
+- **Frontend:** React 19 + Vite, nasazení na Vercel (větev `supabase`)
+- **Backend:** Supabase (přihlášení, PostgreSQL, RLS)
+- **Offline:** data v `localStorage`, service worker (`public/sw.js`), instalace na plochu (PWA)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Spuštění lokálně
+```bash
+npm install
+cp .env.example .env      # doplnit VITE_SUPABASE_URL a VITE_SUPABASE_ANON_KEY
+npm run dev               # vývojový server
+npm run build             # produkční sestavení do dist/
+npm run lint              # kontrola kódu
+npm test                  # testy (vitest)
+```
 
-## React Compiler
+## Struktura
+| Soubor | Obsah |
+|---|---|
+| `src/App.jsx` | stav aplikace, učení, synchronizace, směrování obrazovek |
+| `src/HomeScreen.jsx` / `DeckScreen.jsx` / `StudyScreen.jsx` | hlavní obrazovky |
+| `src/LibraryScreen.jsx` / `LeaderboardScreen.jsx` / `AuthScreen.jsx` | knihovna, žebříček, přihlášení |
+| `src/modals.jsx` | dialogová okna |
+| `src/utils.js` | krabičky, výběr slov do kola, vyhodnocení odpovědí, levely, řeč |
+| `src/sync.js` | komunikace se Supabase (synchronizace, mazání, stránkování) |
+| `src/syncMerge.js` | čistá logika slučování dat (bez sítě, testovaná) |
+| `src/hooks.js` | `usePersistentState`, `useIsMobile` |
+| `src/constants.js` | barvy, styly, levely, výchozí data |
+| `tests/` | testy logiky a simulace synchronizace dvou zařízení |
+| `supabase/` | SQL migrace – spouštět v pořadí F4 → F5 |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Synchronizace (stručně)
+Úplná synchronizace při startu, rychlá po změnách (20 s), po návratu do aplikace a po obnovení
+připojení. Mazání je „měkké“ (`deleted_at`), aby se propsalo na všechna zařízení.
+Detail viz komentář v `src/sync.js`.

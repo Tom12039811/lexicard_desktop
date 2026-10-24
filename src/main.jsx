@@ -9,5 +9,12 @@ createRoot(document.getElementById('root')).render(
       <App />
     </ErrorBoundary>
   </StrictMode>,
-  )
+)
+
+// Offline režim + instalace na plochu (jen v produkčním sestavení)
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(err => console.warn("[LexiCard] SW:", err));
+  });
+}
   

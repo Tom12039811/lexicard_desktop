@@ -18,7 +18,6 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // eslint-disable-next-line no-console
     console.error("[LexiCard] Neočekávaná chyba v aplikaci:", error, info?.componentStack);
   }
 

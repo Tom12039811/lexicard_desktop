@@ -133,7 +133,7 @@ function DeckInfoPopover({ deck }) {
 /* ══════════════════════════════════════════════════════════════
    LibraryScreen
 ══════════════════════════════════════════════════════════════ */
-export default function LibraryScreen({ onBack, onDownload, activeLang, lightMode, localDecks = [] }) {
+export default function LibraryScreen({ onBack, onDownload, activeLang, localDecks = [] }) {
   const [decks, setDecks]           = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
@@ -154,6 +154,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
 
   /* ── Nacteni ── */
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- offline: ukončit načítání
     if (!isOnline) { setLoading(false); return; }
     supabase
       .from("public_decks")
@@ -164,7 +165,7 @@ export default function LibraryScreen({ onBack, onDownload, activeLang, lightMod
         else setDecks(data ?? []);
         setLoading(false);
       });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- načíst jednou při otevření
 
   /* ── Stazeni balicku ── */
   async function handleDownload(deck) {
