@@ -292,7 +292,6 @@ export default function StudyScreen({
   onFlip, onFlipAnswer, onStartListen, onStopListen,
   onSubmitTyped, onDontKnow, onNextCard, onBack,
   onSpeak, onEditWord,
-  ignoreSilent, onSetIgnoreSilent,
 }) {
   const [editWord, setEditWord] = useState(null);
   // Jednorázová nápověda k tichému režimu (jen iPhone/iPad)
@@ -339,8 +338,7 @@ export default function StudyScreen({
             ...(total > 0 ? [{ bg: "var(--lc-statBg1)", c: "#7090c8", t: `${pct}%` }] : []),
           ].map(({ bg, c, t }, i) => <span key={i} style={{ background: bg, color: c, padding: "2px 7px", borderRadius: 20, fontSize: 11, fontWeight: 500 }}>{t}</span>)}
         </div>
-        <SettingsDropdown autoPlay={autoPlay} onToggle={onSetAutoPlay} playSounds={playSounds} onToggleSounds={onSetPlaySounds}
-          ignoreSilent={ignoreSilent} onToggleIgnoreSilent={onSetIgnoreSilent} />
+        <SettingsDropdown autoPlay={autoPlay} onToggle={onSetAutoPlay} playSounds={playSounds} onToggleSounds={onSetPlaySounds} />
       </div>
 
       {/* iPhone: nápověda k tichému režimu — zobrazí se jen jednou */}
@@ -350,7 +348,6 @@ export default function StudyScreen({
             <span style={{ fontSize: 18, lineHeight: 1.2 }}>🔇</span>
             <div style={{ flex: 1, fontSize: 12.5, color: C.textDim, lineHeight: 1.5 }}>
               Neslyšíš výslovnost? iPhone v tichém režimu může zvuk aplikace ztlumit. Pomůže vypnout tichý režim nebo připojit sluchátka.
-              {onSetIgnoreSilent && <> Přehrávání v tichém režimu lze zapnout/vypnout v ⚙️.</>}
             </div>
             <button className="btn" onClick={() => setSilentHintSeen(true)}
               style={{ color: C.gold, fontSize: 12, fontWeight: 700, padding: "2px 4px", flexShrink: 0 }}>Rozumím</button>

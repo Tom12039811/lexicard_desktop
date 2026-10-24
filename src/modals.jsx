@@ -43,7 +43,7 @@ export function IOSToggle({ value, onChange }) {
 }
 
 /* ─── Settings Dropdown ──────────────────────────────────────── */
-export function SettingsDropdown({ autoPlay, onToggle, playSounds, onToggleSounds, ignoreSilent, onToggleIgnoreSilent }) {
+export function SettingsDropdown({ autoPlay, onToggle, playSounds, onToggleSounds }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -79,18 +79,6 @@ export function SettingsDropdown({ autoPlay, onToggle, playSounds, onToggleSound
             </div>
             <IOSToggle value={playSounds ?? true} onChange={onToggleSounds} />
           </div>
-          {onToggleIgnoreSilent && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", gap: 12, borderTop: `1px solid ${C.border}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 17, width: 22, textAlign: "center" }}>📳</span>
-                <div>
-                  <div style={{ fontSize: 13, color: C.text, fontFamily: "'Lora',serif" }}>Hrát i v tichém režimu</div>
-                  <div style={{ fontSize: 11, color: C.muted, marginTop: 1, lineHeight: 1.4 }}>iPhone · může pozastavit hudbu z jiných aplikací</div>
-                </div>
-              </div>
-              <IOSToggle value={ignoreSilent ?? true} onChange={onToggleIgnoreSilent} />
-            </div>
-          )}
         </div>
       )}
     </div>

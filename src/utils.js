@@ -82,22 +82,10 @@ if (typeof document !== "undefined") {
   });
 }
 
-/* ── Tichý režim iPhonu (Audio Session API) ────────────────── */
-// iOS ztlumí zvuk webu v tichém režimu. Typ relace "playback" (= přehrávání médií)
-// by měl zvuk pustit i v tichém režimu — vedlejší efekt: pozastaví hudbu z jiných aplikací.
-// Podpora: jen prohlížeče s navigator.audioSession (Safari); jinde se nic nestane.
-let _ignoreSilent = true;
-export const audioSessionSupported = () =>
-  typeof navigator !== "undefined" && !!navigator.audioSession;
-function applyAudioSession() {
-  try {
-    if (audioSessionSupported()) navigator.audioSession.type = _ignoreSilent ? "playback" : "auto";
-  } catch { /* nepodporovaná hodnota → ponechat výchozí */ }
-}
-export function setIgnoreSilentMode(on) {
-  _ignoreSilent = !!on;
-  applyAudioSession();
-}
+/* ── Tichý režim iPhonu ──────────────────────────────────────
+   iOS v tichém režimu ztlumí zvuk webu (SpeechSynthesis i Web Audio).
+   Audio Session API ("playback") bylo otestováno na iPhonu 24. 10. 2026 — nepomohlo,
+   proto zůstává jen jednorázová nápověda ve StudyScreen. */
 
 /* iPhone / iPad (iPadOS se hlásí jako Macintosh s dotykem) */
 export function isIOS() {
@@ -108,7 +96,6 @@ export function isIOS() {
 
 export function doSpeak(synth, text, lang) {
   if (!synth || !text) return;
-  applyAudioSession();
 
   // Najde nejlepší dostupný hlas pro daný jazyk.
   // Priorita: přesná shoda (en-US) → jazyková shoda (en) → výchozí hlas.
@@ -193,7 +180,6 @@ export function doSpeak(synth, text, lang) {
 const _soundCtx = { ctx: null };
 export function playSound(type) {
   try {
-    applyAudioSession();
     if (!_soundCtx.ctx)
       _soundCtx.ctx = new (window.AudioContext || window.webkitAudioContext)();
     const ctx = _soundCtx.ctx;
