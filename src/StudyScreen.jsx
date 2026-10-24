@@ -21,6 +21,8 @@ export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, all
   const frontWord = showFront ? w.en : (parseSyn(w.cs)[0] || w.cs);
   const frontFlag = showFront ? "🇬🇧" : "🇨🇿";
   const backWord  = showFront ? (parseSyn(w.cs)[0] || w.cs) : w.en;
+  // Výslovnost: přednost má IPA uložená u slova (knihovna/import), pak slovníkové API
+  const ipa = w.ipa || w.phonetic || dictEntry?.ipa || null;
 
   function getZone(dx, dy) {
     if (dy > -30) return null;
@@ -125,7 +127,7 @@ export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, all
                   style={{ border: `1px solid var(--lc-inputBorder)`, color: "var(--lc-muted)", borderRadius: "50%", width: 34, height: 34, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🔊</button>
               )}
             </div>
-            {dir === "en-cs" && dictEntry?.ipa && <div style={{ fontSize: 15, color: C.muted, fontStyle: "italic", marginBottom: 6 }}>{dictEntry.ipa}</div>}
+            {dir === "en-cs" && ipa && <div style={{ fontSize: 15, color: C.muted, fontStyle: "italic", marginBottom: 6 }}>{ipa}</div>}
             <div style={{ fontSize: 13, color: "var(--lc-mutedDark)", marginTop: 8 }}>👆 Klikni pro překlad</div>
           </>
         ) : (
@@ -137,7 +139,7 @@ export function FlipSwipeCard({ word: w, dir, flipped, flipFlash, dictEntry, all
               <button className="btn" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); onSpeakBack(); }}
                 style={{ border: `1px solid var(--lc-inputBorder)`, color: "var(--lc-muted)", borderRadius: "50%", width: 34, height: 34, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🔊</button>
             </div>
-            {dir === "cs-en" && dictEntry?.ipa && <div style={{ fontSize: 14, color: C.muted, fontStyle: "italic", marginBottom: allSyn || w.example ? 10 : 0 }}>{dictEntry.ipa}</div>}
+            {dir === "cs-en" && ipa && <div style={{ fontSize: 14, color: C.muted, fontStyle: "italic", marginBottom: allSyn || w.example ? 10 : 0 }}>{ipa}</div>}
             {allSyn && <div style={{ fontSize: 13, color: "var(--lc-muted)", marginBottom: w.example ? 12 : 0 }}>také: {allSyn}</div>}
             {w.example && (
               <div style={{ fontSize: 16, color: "var(--lc-textDim)", fontStyle: "italic", borderTop: `1px solid ${C.border}`, paddingTop: 14, marginTop: 2, lineHeight: 1.65, maxWidth: "90%" }}>
@@ -293,6 +295,7 @@ export default function StudyScreen({
   const [editWord, setEditWord] = useState(null);
   const w = rWords[rIdx];
   if (!w) return null;
+  const ipa = w.ipa || w.phonetic || dictEntry?.ipa || null;
 
   const isFlip = mode === "flip";
   const isPron = mode === "pron";
@@ -398,7 +401,7 @@ export default function StudyScreen({
                   <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 30, fontWeight: 700, color: C.text }}>{w.en}</div>
                   <button className="btn" onClick={() => onSpeak(w.en, "en-US")} style={{ border: `1px solid var(--lc-okBorder)`, color: "var(--lc-ok)", borderRadius: "50%", width: 30, height: 30, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🔊</button>
                 </div>
-                {dictEntry?.ipa && <div style={{ fontSize: 13, color: C.muted, fontStyle: "italic", marginBottom: 4 }}>{dictEntry.ipa}</div>}
+                {ipa && <div style={{ fontSize: 13, color: C.muted, fontStyle: "italic", marginBottom: 4 }}>{ipa}</div>}
                 {w.cs && <div style={{ fontSize: 13, color: "var(--lc-muted)", fontStyle: "italic" }}>{parseSyn(w.cs)[0]}</div>}
                 {pronAtt > 0 && !feedback && <div style={{ fontSize: 12, color: pronAtt >= 2 ? C.err : "#c89040", marginTop: 5 }}>{pronAtt === 1 ? "Pokus 2/3" : "Poslední pokus 3/3"}</div>}
               </>
@@ -411,7 +414,7 @@ export default function StudyScreen({
                   <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>{question}</div>
                   <button className="btn" onClick={() => onSpeak(question, qLang)} style={{ border: `1px solid var(--lc-inputBorder)`, color: "var(--lc-muted)", borderRadius: "50%", width: 28, height: 28, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>🔊</button>
                 </div>
-                {effDir === "en-cs" && dictEntry?.ipa && <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", marginBottom: 4 }}>{dictEntry.ipa}</div>}
+                {effDir === "en-cs" && ipa && <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", marginBottom: 4 }}>{ipa}</div>}
                 {effDir === "en-cs" && w.example && !feedback && (
                   <div style={{ fontSize: 14, color: "var(--lc-textDim)", fontStyle: "italic", borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 4, lineHeight: 1.5 }}>
                     💡 „{w.example}"
@@ -496,7 +499,7 @@ export default function StudyScreen({
                   </div>
                   <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 19, fontWeight: 700, color: C.text }}>{parseSyn(feedback.answer)[0] || feedback.answer}</div>
                   {allSyn && <div style={{ fontSize: 11, color: "var(--lc-muted)", marginTop: 2 }}>✓ také: {allSyn}</div>}
-                  {dictEntry?.ipa && <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", marginTop: 2 }}>{dictEntry.ipa}</div>}
+                  {ipa && <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", marginTop: 2 }}>{ipa}</div>}
                   {effDir === "en-cs" && w.example && <div style={{ fontSize: 14, color: "var(--lc-textDim)", fontStyle: "italic", marginTop: 6, lineHeight: 1.5 }}>💡 „{w.example}"</div>}
                   {!feedback.ok && feedback.given && <div style={{ fontSize: 11, color: "var(--lc-mutedDark)", marginTop: 4, fontStyle: "italic" }}>Vaše odpověď: „{feedback.given}"</div>}
                 </div>

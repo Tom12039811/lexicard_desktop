@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { C, DECK_SORTS, STYLE } from "./constants.js";
-import { sortDecks, dueCount, getLevel } from "./utils.js";
+import { sortDecks, dueCount, getLevel, isMastered } from "./utils.js";
 import { LangDropdown, UploadModal, FolderModal, ConfirmModal, MoveFolderModal, FolderStatsModal } from "./modals.jsx";
 import { supabase } from "./supabase.js";
 
@@ -234,6 +234,7 @@ export default function HomeScreen({
   lightMode, onToggleLight,
   newlyDownloaded = new Set(),
   onClearNewlyDownloaded,
+  savedFolderId = null,
 }) {
   const [sort, setSort] = useState("date-desc");
   const [showUpload, setShowUpload] = useState(false);
@@ -255,7 +256,7 @@ export default function HomeScreen({
   const looseDecks = ld.filter(d => !d.folderId || !langFolders.find(f => f.id === d.folderId));
 
   function DeckCard({ d }) {
-    const mastered = d.words.filter(w => (w.score ?? 0) >= 3).length;
+    const mastered = d.words.filter(isMastered).length;
     const pct = d.words.length ? Math.round(mastered / d.words.length * 100) : 0;
     const due = dueCount(d.words);
     const sr = d.deckStats?.totalAnswers ? Math.round(d.deckStats.correctAnswers / d.deckStats.totalAnswers * 100) : null;
@@ -334,7 +335,7 @@ export default function HomeScreen({
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.muted, marginBottom: 4 }}>
-            <span>{gameStats.xp ?? 0} XP</span><span>{lvl.next} XP</span>
+            <span>{gameStats.xp ?? 0} XP</span><span>{lvl.next != null ? `${lvl.next} XP` : "MAX"}</span>
           </div>
           <div style={{ background: "var(--lc-xpTrack)", borderRadius: 4, height: 6 }}>
             <div style={{ width: `${lvl.pct}%`, height: "100%", background: "linear-gradient(90deg,#d4a853,#f0c060)", borderRadius: 4, transition: "width .5s" }} />
@@ -450,7 +451,7 @@ export default function HomeScreen({
                         style={{ background: "var(--lc-selBg)", border: `1px solid var(--lc-selBorder)`, color: C.gold, borderRadius: 7, padding: "3px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                         onMouseEnter={e => { e.currentTarget.style.background = C.gold; e.currentTarget.style.color = C.bg; }}
                         onMouseLeave={e => { e.currentTarget.style.background = "var(--lc-selBg)"; e.currentTarget.style.color = C.gold; }}>
-                        ▶ Uceni
+                        {savedFolderId === f.id ? "↩ Pokracovat" : "▶ Uceni"}
                       </button>
                     )}
                     <button className="btn" onClick={e => { e.stopPropagation(); setFolderStats(f); }} title="Statistiky slozky"

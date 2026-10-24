@@ -183,7 +183,7 @@ function EntryRow({ entry, isMe, medalColor, medalEmoji }) {
           {entry.username}{isMe && " (ty)"}
         </div>
         <div style={{ fontSize: 11, color: "var(--lc-muted)", marginTop: 1 }}>
-          Lv.{entry.level} · {lvl.name}
+          Lv.{lvl.level} · {lvl.name}
         </div>
       </div>
 

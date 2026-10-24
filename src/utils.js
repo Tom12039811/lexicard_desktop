@@ -2,6 +2,8 @@
    utils.js — LexiCard
 ══════════════════════════════════════════════════════════════ */
 
+import { LVL_XP, LVL_NAMES } from "./constants.js";
+
 /* ── 5. Bezpečné generování ID ─────────────────────────────── */
 export const uid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -11,12 +13,23 @@ export const uid = () =>
 /* ── Timestamp helper ──────────────────────────────────────── */
 export const now = () => Date.now();
 
-/* ── 1. Oprava Streaku (UTC, časová pásma) ─────────────────── */
+/* ── Lokální datum YYYY-MM-DD (časové pásmo zařízení, ne UTC) ── */
+export function localDateStr(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/* ── 1. Streak podle lokálního data ────────────────────────── */
+// Dříve se počítalo v UTC → učení mezi 0:00–2:00 (CEST) spadlo do předchozího dne.
 export function checkStreak(gs) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = localDateStr();
   const last = gs.lastStudyDate;
   if (last === today) return gs;
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  const y = new Date();
+  y.setDate(y.getDate() - 1); // setDate řeší i přechod letního/zimního času
+  const yesterday = localDateStr(y);
   const newStreak = last === yesterday ? (gs.dailyStreak ?? 0) + 1 : 1;
   return { ...gs, dailyStreak: newStreak, lastStudyDate: today };
 }
@@ -203,22 +216,52 @@ function norm(s) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")   // obsah závorek se nepočítá: "pracovat (na čem)"
     .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-/* ── Lokální porovnání odpovědi ────────────────────────────── */
-export function localMatch(given, expected) {
-  if (!given || !expected) return false;
-  const g = norm(given);
-  const variants = expected.split(/[/,]/).map(v => norm(v.trim())).filter(Boolean);
-  return variants.some(v => lev(g, v) <= 1);
+/* Odstraní úvodní "to " / člen — "to work" = "work", "the house" = "house" */
+function stripLead(s) {
+  const r = s.replace(/^(to|a|an|the) /, "");
+  return r || s;
 }
 
-/* ── Parsování synonym (odděleno lomítkem) ─────────────────── */
+/* Tolerance překlepů podle délky očekávaného slova:
+   ≤3 znaky → 0 (car ≠ cat), ≤12 → 1, delší (věty) → 2 */
+function tolerance(len) {
+  if (len <= 3) return 0;
+  if (len <= 12) return 1;
+  return 2;
+}
+
+/* ── Lokální porovnání odpovědi ────────────────────────────── */
+// expected: hlavní pole (varianty oddělené "/" nebo ";", čárka NE — věty obsahují čárky)
+// extra:    synonyma (oddělovač "/", ";" nebo ",")
+export function localMatch(given, expected, extra = "") {
+  if (!given || !expected) return false;
+  const g = norm(given);
+  if (!g) return false;
+  const variants = [
+    expected,                                   // celý text jako celek (věta s čárkou)
+    ...expected.split(/[/;]/),
+    ...(extra ? extra.split(/[/;,]/) : []),
+  ].map(v => norm(v)).filter(Boolean);
+  const gs = new Set([g, stripLead(g)]);
+  return variants.some(v => {
+    const vs = new Set([v, stripLead(v)]);
+    for (const a of gs) for (const b of vs) {
+      if (lev(a, b) <= tolerance(b.length)) return true;
+    }
+    return false;
+  });
+}
+
+/* ── Parsování variant (odděleno lomítkem nebo středníkem) ─── */
 export function parseSyn(str) {
   if (!str) return [];
-  return str.split("/").map(s => s.trim()).filter(Boolean);
+  return str.split(/[/;]/).map(s => s.trim()).filter(Boolean);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -259,10 +302,11 @@ export function pickRound(words, size = 15) {
   if (!words?.length) return [];
   const t = Date.now();
 
-  // 1. Splatná dnes (overdue)
-  const due = words.filter(w => !w.vmNextReview || w.vmNextReview <= t);
-  // 2. Nová (nikdy nerecenzovaná)
-  const fresh = words.filter(w => !w.vmLastReview && w.vmNextReview === null);
+  // Tři disjunktní skupiny (dříve "fresh" bylo podmnožinou "due" → duplicity v kole)
+  // 1. Splatná (už opakovaná, termín dnes nebo dříve)
+  const due = words.filter(w => w.vmNextReview && w.vmNextReview <= t);
+  // 2. Nová (bez termínu)
+  const fresh = words.filter(w => !w.vmNextReview);
   // 3. Budoucí (padding)
   const future = words.filter(w => w.vmNextReview && w.vmNextReview > t)
     .sort((a, b) => (a.vmNextReview ?? 0) - (b.vmNextReview ?? 0));
@@ -282,17 +326,21 @@ export function calcXP(quality, combo) {
 }
 
 /* ── Level systém ──────────────────────────────────────────── */
-export function getLevel(xp) {
-  const thresholds = [0, 50, 150, 300, 500, 800, 1200, 1800, 2600, 3600, 5000];
+// Prahy a názvy z constants.js (prvních 11 prahů je shodných s dřívější verzí)
+export function getLevel(xp = 0) {
   let level = 1;
-  for (let i = 0; i < thresholds.length; i++) {
-    if (xp >= thresholds[i]) level = i + 1;
+  for (let i = 0; i < LVL_XP.length; i++) {
+    if (xp >= LVL_XP[i]) level = i + 1;
   }
-  const next = thresholds[level] ?? null;
-  const prev = thresholds[level - 1] ?? 0;
+  const next = LVL_XP[level] ?? null;
+  const prev = LVL_XP[level - 1] ?? 0;
   const progress = next ? Math.round(((xp - prev) / (next - prev)) * 100) : 100;
-  return { level, next, progress };
+  return { level, next, progress, pct: progress, name: LVL_NAMES[level - 1] ?? "" };
 }
+
+/* ── Zvládnuté slovo = krabička ≥ 4 (interval 14 dní a víc) ── */
+export const MASTERED_BOX = 4;
+export const isMastered = w => (w?.vmBox ?? 1) >= MASTERED_BOX;
 
 /* ── Combo info (label + barva pro UI) ─────────────────────── */
 export function comboInfo(combo) {

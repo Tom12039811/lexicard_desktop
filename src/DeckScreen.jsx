@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { C, STYLE } from "./constants.js";
-import { sortWords, dueCount } from "./utils.js";
+import { sortWords, dueCount, isMastered } from "./utils.js";
 import { AddWordModal, StatsModal, ConfirmModal, RenameModal } from "./modals.jsx";
 
 /* ── Stat Info Popover ────────────────────────────────────────── */
 const STAT_INFO = {
   "Uspesnost": "Kolik procent tvych odpovedi bylo spravnych. Pocita se ze vsech odpovedi v historii tohoto balicku — cim vyssi, tim lepe!",
-  "Nauceno": "Pocet slov, ktera jsi skutecne zvladl — odpovidal jsi na ne spravne vicekrat za sebou a dosahla stoupajiciho skore. Cil je mit toto cislo co nejvyssi.",
+  "Nauceno": "Pocet slov, ktera jsou v krabicce 4 a vys — opakujes je nejdrive za 14 dni, protoze jsi je nekolikrat po sobe znal. Spatna odpoved vraci slovo do krabicky 1.",
   "Procviceno": "Kolik slov jsi jiz alespon jednou procvicoval (spravne ci spatne). Slov ktera jsi jeste nikdy nevidel ukazuje zbyvajici cast.",
   "K opak.": "Slovicka, ktera jsou dnes 'splatna' k opakovani podle systemu planovaneho opakovani. Cim castejis opakovani zvladnes, tim lepe si slovicka zapamatujes.",
   "Odpovedi": "Celkovy pocet vsech odpovedi v tomto balicku — spravnych i spatnych dohromady. Ukazuje, jak intenzivne jsi se balickem zabival.",
@@ -126,7 +126,7 @@ export default function DeckScreen({
   const [expandedRows, setExpandedRows] = useState({});
 
   const ds = deck.deckStats ?? { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 };
-  const mastered = deck.words.filter(w => (w.score ?? 0) >= 3).length;
+  const mastered = deck.words.filter(isMastered).length;
   const practiced = deck.words.filter(w => (w.wStats?.total ?? 0) > 0).length;
   const due = dueCount(deck.words);
   const sr = ds.totalAnswers ? Math.round(ds.correctAnswers / ds.totalAnswers * 100) : null;

@@ -15,6 +15,7 @@
 ══════════════════════════════════════════════════════════════ */
 
 import { supabase } from "./supabase.js";
+import { getLevel } from "./utils.js";
 
 /* ── Helpers ─────────────────────────────────────────────── */
 
@@ -61,8 +62,9 @@ export async function syncDecks(localDecks, userId) {
   /* 3. Smaž ze Supabase decky které byly záměrně smazány lokálně */
   const toDeleteRemote = remoteDecks.filter(r => deletedIds.has(r.id)).map(r => r.id);
   if (toDeleteRemote.length > 0) {
-    await supabase.from("decks").delete().in("id", toDeleteRemote);
+    // Nejdřív karty, pak balíčky (cizí klíč cards.deck_id → decks.id)
     await supabase.from("cards").delete().in("deck_id", toDeleteRemote);
+    await supabase.from("decks").delete().in("id", toDeleteRemote);
   }
 
   /* 4. Slouč lokální a vzdálené decky (timestamp wins) */
@@ -223,7 +225,7 @@ function cardToRemote(word, deckId, userId) {
     user_id:     userId,
     czech:       word.cs  ?? null,
     english:     word.en  ?? null,
-    ipa:         word.ipa ?? null,
+    ipa:         word.ipa || word.phonetic || null,   // knihovna ukládá výslovnost jako "phonetic"
     audio_url:   word.audioUrl ?? null,
     example:     word.example  ?? null,
     synonyms:    word.synonyms ?? null,
@@ -306,7 +308,7 @@ export async function syncUserStats(localStats, userId) {
     .upsert({
       user_id:          userId,
       xp:               finalStats.xp             ?? 0,
-      level:            finalStats.level           ?? 1,
+      level:            getLevel(finalStats.xp ?? 0).level,   // level vždy dopočítat z XP
       streak:           finalStats.dailyStreak     ?? 0,
       last_study_date:  finalStats.lastStudyDate   ?? null,
       updated_at:       finalStats.updatedAt       ?? tsNow(),

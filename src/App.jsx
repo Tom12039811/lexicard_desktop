@@ -113,6 +113,9 @@ export default function LexiCard() {
   const synthRef    = useRef(window.speechSynthesis);
   const timerRef    = useRef(null);
   const intervalRef = useRef(null);
+  // Vždy aktuální verze nextCard pro časovače (setTimeout) — jinak by časovač
+  // zavolal verzi se starými rStats a poslední odpověď kola by se nezapočítala.
+  const nextCardRef = useRef(null);
 
   /* ── sync stav ── */
   const [syncStatus, setSyncStatus] = useState(null);
@@ -225,16 +228,18 @@ export default function LexiCard() {
     fetchDict(w.en).then(e => { if (rWords[rIdx]?.id === w.id) setDictEntry(e); });
   }, [rIdx, mode, screen]);
 
+  useEffect(() => { nextCardRef.current = nextCard; });
+
   /* ── auto-advance on feedback ── */
   useEffect(() => {
     if (!feedback || screen !== "study" || mode === "flip") return;
     if (playSounds) playSound(feedback.ok ? "ok" : "bad");
     if (feedback.ok) {
-      timerRef.current = setTimeout(() => nextCard(), 900);
+      timerRef.current = setTimeout(() => nextCardRef.current?.(), 900);
     } else {
       setWrongCountdown(5); let c = 5;
       intervalRef.current = setInterval(() => { c--; setWrongCountdown(c); if (c <= 0) clearInterval(intervalRef.current); }, 1000);
-      timerRef.current = setTimeout(() => nextCard(), 5200);
+      timerRef.current = setTimeout(() => nextCardRef.current?.(), 5200);
     }
     return () => { clearTimeout(timerRef.current); clearInterval(intervalRef.current); };
   }, [feedback]);
@@ -347,9 +352,13 @@ export default function LexiCard() {
       if (!raw) return null;
       const s = JSON.parse(raw);
       if (Date.now() - s.savedAt > 86400000) { clearSession(); return null; }
-      const d = (decksSnap || decks).find(d => d.id === s.deckId);
-      if (!d) return null;
-      const wm = new Map(d.words.map(w => [w.id, w]));
+      const ds = decksSnap || decks;
+      // Studium složky: slova hledáme ve všech balíčcích složky (dříve jen v prvním)
+      const pool = s.folderId
+        ? ds.filter(d => d.folderId === s.folderId).flatMap(d => d.words)
+        : (ds.find(d => d.id === s.deckId)?.words ?? null);
+      if (!pool) return null;
+      const wm = new Map(pool.map(w => [w.id, w]));
       const rWords = (s.rWords || []).map(id => wm.get(id)).filter(Boolean);
       if (!rWords.length) return null;
       return { rWords, rIdx: s.rIdx || 0, rStats: s.rStats || { ok: 0, bad: 0, xp: 0 }, combo: s.combo || 0, deckId: s.deckId, folderId: s.folderId ?? null, mode: s.mode || "transl", translDir: s.translDir || "en-cs", flipDir: s.flipDir || "en-cs" };
@@ -451,27 +460,27 @@ export default function LexiCard() {
   }
 
   function finishRound() {
+    // Odpovědi (totalAnswers/correctAnswers) se přičítají průběžně v updateWordInDecks —
+    // tady už jen dokončené kolo (dříve se odpovědi počítaly 2×).
     setDecks(ds => ds.map(d => {
       if (studyFolderId ? d.folderId !== studyFolderId : d.id !== deckId) return d;
-      return { ...d, deckStats: { totalAnswers: (d.deckStats?.totalAnswers ?? 0) + rStats.ok + rStats.bad, correctAnswers: (d.deckStats?.correctAnswers ?? 0) + rStats.ok, roundsCompleted: (d.deckStats?.roundsCompleted ?? 0) + 1 } };
+      return { ...d, deckStats: { totalAnswers: d.deckStats?.totalAnswers ?? 0, correctAnswers: d.deckStats?.correctAnswers ?? 0, roundsCompleted: (d.deckStats?.roundsCompleted ?? 0) + 1 } };
     }));
     const roundBonus = 50;
     const totalXp = rStats.xp + roundBonus;
 
-    // Vypočítej výsledná data synchronně (bez vnořených setState callbacků)
-    // aby roundEndData bylo vždy nastaveno před přechodem na roundEnd screen.
-    let endData = null;
+    // Data pro obrazovku konce kola počítáme synchronně z aktuálního gameStats.
+    // (Dříve se plnila uvnitř setGameStats updateru, který React spouští až při
+    //  dalším renderu → level-up a streak se nikdy nezobrazily.)
+    const updatedNow = checkStreak(gameStats);
+    const oldLvl = getLevel(updatedNow.xp ?? 0).level;
+    const newLvl = getLevel((updatedNow.xp ?? 0) + totalXp).level;
+    setRoundEndData({ xpEarned: totalXp, newLevel: newLvl > oldLvl ? newLvl : null, streak: updatedNow.dailyStreak ?? 0 });
+
     setGameStats(prev => {
       const updated = checkStreak(prev);
-      const oldLvl = getLevel(updated.xp ?? 0).level;
-      const newXp = (updated.xp ?? 0) + totalXp;
-      const newLvl = getLevel(newXp).level;
-      endData = { xpEarned: totalXp, newLevel: newLvl > oldLvl ? newLvl : null, streak: updated.dailyStreak };
-      return { ...updated, xp: newXp, updatedAt: new Date().toISOString() };
+      return { ...updated, xp: (updated.xp ?? 0) + totalXp, updatedAt: new Date().toISOString() };
     });
-
-    // Nastav roundEndData ihned — nezávisle na setGameStats callbacku
-    setRoundEndData({ xpEarned: totalXp, newLevel: null, streak: 0, ...(endData ?? {}) });
     clearSession();
 
     // Rozhodnutí o další obrazovce — čteme aktuální hodnoty poolUnseen/poolReturned
@@ -656,7 +665,7 @@ export default function LexiCard() {
       setTimeout(() => speakWord(ans, lang), 150);
     }
 
-    setTimeout(() => { setFlipFlash(null); setFlipped(false); nextCard(); }, 420);
+    setTimeout(() => { setFlipFlash(null); setFlipped(false); nextCardRef.current?.(); }, 420);
   }
 
   /* ── text/mic answer ── */
@@ -682,12 +691,9 @@ export default function LexiCard() {
       }
       return;
     }
-    const ef = mode === "transl"
-      ? (translDir === "en-cs" ? (w.cs + (w.synonyms ? " / " + w.synonyms : "")) : (w.en + (w.synonyms ? " / " + w.synonyms : "")))
-      : (w.cs + (w.synonyms ? " / " + w.synonyms : ""));
-    if (localMatch(text, ef)) { commitAnswer(w, 5, text); return; }
-    setEvalLoading(true);
-    setEvalLoading(false);
+    // Hlavní pole se dělí jen podle "/" a ";" (věty obsahují čárky), synonyma i podle ","
+    const expected = (mode === "transl" && translDir === "cs-en") ? w.en : w.cs;
+    if (localMatch(text, expected, w.synonyms || "")) { commitAnswer(w, 5, text); return; }
     commitAnswer(w, 0, text);
   }
 
@@ -786,7 +792,11 @@ export default function LexiCard() {
         onSelect={id => { setDeckId(id); setScreen("deck"); setNewlyDownloaded(prev => { if (!prev.has(id)) return prev; const next = new Set(prev); next.delete(id); return next; }); }}
         onFileUpload={loadFile} onSampleDeck={loadSampleDeck}
         onAddFolder={addFolder} onRenameFolder={renameFolder} onDeleteFolder={deleteFolder} onMoveDeck={moveDeck}
-        onFolderStudy={startFolderStudy}
+        onFolderStudy={fid => {
+          const s = restoreSession(decks);
+          if (s && s.folderId === fid) resumeStudy(decks); else startFolderStudy(fid);
+        }}
+        savedFolderId={restoreSession(decks)?.folderId ?? null}
         onLogout={() => supabase.auth.signOut()}
         userEmail={session?.user?.email}
         username={session?.user?.user_metadata?.username}
@@ -823,7 +833,7 @@ export default function LexiCard() {
   if (screen === "deck" && deck) {
     const lc = langs.find(l => l.id === deck.lang) || langs[0];
     const savedSess = restoreSession(decks);
-    const hasSavedSession = !!(savedSess && savedSess.deckId === deck.id);
+    const hasSavedSession = !!(savedSess && !savedSess.folderId && savedSess.deckId === deck.id);
     return (
       <DeckScreen
         deck={deck} langCfg={lc} hasSavedSession={hasSavedSession}

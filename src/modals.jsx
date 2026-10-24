@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { C, STAT_COLS } from "./constants.js";
-import { sortStats, parseSyn, vmGetBox, uid } from "./utils.js";
+import { sortStats, parseSyn, vmGetBox, uid, isMastered } from "./utils.js";
 
 /* ─── Base Modal ─────────────────────────────────────────────── */
 export function Modal({ onClose, children, wide = false }) {
@@ -306,7 +306,7 @@ export function StatsModal({ deck, onClose, onReset }) {
   const [sk, setSk] = useState("total-desc");
   const sorted = sortStats(deck.words, sk);
   const ds = deck.deckStats ?? { totalAnswers: 0, correctAnswers: 0, roundsCompleted: 0 };
-  const mastered = deck.words.filter(w => (w.score ?? 0) >= 3).length;
+  const mastered = deck.words.filter(isMastered).length;
   return (
     <Modal onClose={onClose} wide>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14, gap: 12 }}>
@@ -478,7 +478,7 @@ export function FolderStatsModal({ folder, decks, onClose }) {
   const totalAnswers   = folderDecks.reduce((s, d) => s + (d.deckStats?.totalAnswers   ?? 0), 0);
   const correctAnswers = folderDecks.reduce((s, d) => s + (d.deckStats?.correctAnswers ?? 0), 0);
   const roundsCompleted = folderDecks.reduce((s, d) => s + (d.deckStats?.roundsCompleted ?? 0), 0);
-  const mastered = allWords.filter(w => (w.score ?? 0) >= 3).length;
+  const mastered = allWords.filter(isMastered).length;
 
   const sorted = sortStats(allWords, sk);
 
